@@ -2206,12 +2206,14 @@ const BYOK_CFG='pm.byok.v1', BYOK_KEY='pm.byok.key';
 const BYOK_PROV={
   anthropic:{name:'Claude API（Anthropic）',base:'https://api.anthropic.com',model:'claude-sonnet-5-5'},
   gemini:{name:'Gemini API（Google）',base:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-3.8-flash'},
-  kimi:{name:'Kimi（Moonshot AI）',base:'https://api.moonshot.ai/v1',model:'kimi-k2.6'},
+  kimi:{name:'Kimi 國際站（platform.moonshot.ai）',base:'https://api.moonshot.ai/v1',model:'kimi-k2.6'},
+  kimicn:{name:'Kimi 中國站（platform.moonshot.cn）',base:'https://api.moonshot.cn/v1',model:'kimi-k2.6'},
   openai:{name:'OpenAI 相容格式（GPT、公司私有雲等）',base:'https://api.openai.com/v1',model:''}};
 const BYOK_MODELS={
   anthropic:[['claude-sonnet-5-5','Claude Sonnet 5.5（建議預設）'],['claude-haiku-5-5','Claude Haiku 5.5（最省）'],['claude-opus-5-5','Claude Opus 5.5（複雜問題）'],['claude-fable-5-1','Claude Fable 5.1（最強、最貴）']],
   gemini:[['gemini-3.8-flash','Gemini 3.8 Flash（建議預設）'],['gemini-3.5-flash-lite','Gemini 3.5 Flash-Lite（最省）'],['gemini-4-argon','Gemini 4 Argon（旗艦）']],
   kimi:[['kimi-k2.6','Kimi K2.6（省錢）']],
+  kimicn:[['kimi-k2.6','Kimi K2.6（省錢）']],
   openai:[['gpt-6.1-sol','GPT-6.1 Sol'],['gpt-6-luna','GPT-6 Luna（最省）'],['gpt-5.6-terra','GPT-5.6 Terra']]};
 let BK={provider:'anthropic',base:'',model:'',keep:false,s2t:false}, BKEY='';
 try{Object.assign(BK,JSON.parse(localStorage.getItem(BYOK_CFG)||'{}'))}catch{}
@@ -2228,7 +2230,7 @@ async function bkHttpErr(res){
   const st=res.status, m=String(msg).slice(0,200)+` (HTTP ${st})`;
   if(st===402||/quota|billing|insufficient|balance/i.test(msg))return bkErr('byok_quota','AI 帳戶額度不足：'+m);
   return bkErr(st===401||st===403?'byok_auth':st===404?'byok_model':st===429?'rate_limited':'upstream_error',
-    (st===401||st===403?'API key 無效或沒有權限：':st===404?'找不到模型（檢查模型名稱）：':st===429?'問得太快或額度用完：':'AI 服務出錯：')+m)}
+    (st===401||st===403?`API key 無效或沒有權限（送到 ${bkBase()}；key 長度 ${BKEY.length}，開頭 ${BKEY.slice(0,3)}…結尾 ${BKEY.slice(-4)}${/[^\x21-\x7e]/.test(BKEY)?'；含有空白或非英數字元，請重貼':''}）：`:st===404?'找不到模型（檢查模型名稱）：':st===429?'問得太快或額度用完：':'AI 服務出錯：')+m)}
 async function bkReadSSE(res,onData,signal){
   const rd=res.body.getReader(), dec=new TextDecoder(); let buf='';
   for(;;){
@@ -2251,7 +2253,7 @@ async function bkSample(input,opts){
     const body=anth?{model,max_tokens:8000,stream:true,messages:msgs}:{model,stream:true,messages:msgs};
     if(tools.length){ if(anth)body.tools=tools.map(t=>({name:t.name,description:t.description,input_schema:t.inputSchema||{type:'object',properties:{}}}));
       else body.tools=tools.map(t=>({type:'function',function:{name:t.name,description:t.description,parameters:t.inputSchema||{type:'object',properties:{}}}})) }
-    if(prov==='kimi'&&/^kimi-k2\.6/i.test(model))body.thinking={type:'disabled'};
+    if(/^kimi/.test(prov)&&/^kimi-k2\.6/i.test(model))body.thinking={type:'disabled'};
     let res; try{res=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal:opts.signal})}
     catch(e){ if(opts.signal&&opts.signal.aborted)throw bkErr('aborted'); throw bkErr('byok_network','連不到 AI 服務（網路、網址或瀏覽器擋下）：'+String(e&&e.message||'')) }
     if(!res.ok)throw await bkHttpErr(res);
@@ -2315,7 +2317,7 @@ function aiSettings(){
     $('#bkBase').placeholder=P.base; $('#bkBase').value=BK.base||P.base; $('#bkKeep').checked=!!BK.keep; $('#bkS2t').checked=!!BK.s2t;
     $('#bkKey').placeholder=BKEY?'（已輸入，結尾 '+BKEY.slice(-4)+'；要更換再貼新的）':'貼上後按「儲存並啟用」'; $('#bkClear').disabled=!BKEY; };
   fill();
-  $('#bkProv').onchange=e=>{BK.provider=e.target.value; BK.base=''; BK.model=''; custom=false; BK.s2t=BK.provider==='kimi'; fill()};
+  $('#bkProv').onchange=e=>{BK.provider=e.target.value; BK.base=''; BK.model=''; custom=false; BK.s2t=/^kimi/.test(BK.provider); fill()};
   $('#bkModelSel').onchange=e=>{ if(e.target.value==='__c'){custom=true; BK.model=''; fill(); $('#bkModelC').focus()} else {custom=false; BK.model=e.target.value; fill()} };
   const readForm=()=>{ BK.base=$('#bkBase').value.trim(); BK.model=($('#bkModelSel').value==='__c'?$('#bkModelC').value:$('#bkModelSel').value).trim(); BK.keep=$('#bkKeep').checked; BK.s2t=$('#bkS2t').checked; const k=$('#bkKey').value.trim(); if(k)BKEY=k; $('#bkKey').value=''; };
   const persist=()=>{ try{localStorage.setItem(BYOK_CFG,JSON.stringify(BK)); sessionStorage.setItem(BYOK_KEY,BKEY); if(BK.keep&&BKEY)localStorage.setItem(BYOK_KEY,BKEY); else localStorage.removeItem(BYOK_KEY); if(!BKEY)sessionStorage.removeItem(BYOK_KEY)}catch{} };
