@@ -2303,8 +2303,8 @@ function aiSettings(){
     <label>模型<select id="bkModelSel"></select></label>
     <label id="bkCW" hidden>自訂模型名稱<input type="text" id="bkModelC" spellcheck="false"></label>
     <label>API 網址（已填預設，通常不用改）<input type="text" id="bkBase" spellcheck="false"></label>
-    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="bkKeep" style="width:auto"> 把 key 記在這個瀏覽器（共用電腦請不要勾；不勾則關閉分頁就清除）</label>
-    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="bkS2t" style="width:auto"> 把回答自動轉成繁體（Kimi 等常混入簡體字時勾選）</label>
+    <label style="display:flex;flex-direction:row;gap:6px;align-items:center"><input type="checkbox" id="bkKeep" style="width:auto"> 把 key 記在這個瀏覽器（共用電腦請不要勾；不勾則關閉分頁就清除）</label>
+    <label style="display:flex;flex-direction:row;gap:6px;align-items:center"><input type="checkbox" id="bkS2t" style="width:auto"> 把回答自動轉成繁體（Kimi 等常混入簡體字時勾選）</label>
     <div class="m" id="bkHint" style="font-size:13px"></div>
     <div class="bt"><button class="act" id="bkClear" type="button">清除 key</button><button class="act" id="bkTest" type="button">測試連線</button><button class="act primary" id="bkSave" type="button">儲存並啟用</button><button class="act" id="bkClose" type="button">關閉</button></div></div>`;
   document.body.appendChild(ov); const $=s=>ov.querySelector(s); let custom=false;
