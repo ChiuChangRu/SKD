@@ -2800,7 +2800,7 @@ async function saveOrg(){
 // ===== 備份：匯出／匯入（所有案件＋公司 Excel 範本，存成一個 JSON；含公司資料，請自行妥善保管，不要放進 GitHub）=====
 const _renderDl0=renderDl;
 renderDl=function(){ _renderDl0();
-  document.getElementById('dlBody').insertAdjacentHTML('beforeend',`<div class="dlc"><h3>備份（所有案件＋公司 Excel 範本）</h3><p>備份檔含公司資料，請存在自己的電腦，不要上傳到 GitHub 或分享出去。匯入時同編號的案件會被覆蓋。</p><button class="act" data-bk="out" type="button">⬇ 匯出備份 JSON</button> <button class="act" data-bk="in" type="button">⬆ 匯入備份 JSON…</button><input type="file" id="bkFile" accept=".json,application/json" hidden></div>`)};
+  document.getElementById('dlBody').insertAdjacentHTML('beforeend',`<div class="dlc"><h3>備份（所有案件＋公司 Excel 範本）</h3><p>備份檔含公司資料，請存在自己的電腦，不要上傳到 GitHub 或分享出去。匯入時同編號的案件會被覆蓋。</p><button class="act" data-bk="out" type="button">⬇ 匯出備份 JSON</button> <button class="act" data-bk="in" type="button">⬆ 匯入備份 JSON…</button><input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain" hidden></div>`)};
 document.getElementById('dlBody').addEventListener('click',async e=>{
   const b=e.target.closest('[data-bk]'); if(!b)return; const st=document.getElementById('msg');
   if(b.dataset.bk==='in'){document.getElementById('bkFile').click();return}
