@@ -1,0 +1,10 @@
+{
+  // 與 worker/wrangler.jsonc 相同：Cloudflare 的 Root directory 設成「/」或「worker」都能正確部署這支 Worker
+  // （只部署 API，不會把網頁 index.html 當成靜態檔一起發布；網頁由 GitHub Pages 提供）
+  "name": "pm-schedule",
+  "main": "worker/src/worker.js",
+  "compatibility_date": "2026-07-01",
+  "keep_vars": true,
+  "vars": { "ALLOWED_ORIGIN": "https://chiuchangru.github.io" },
+  "kv_namespaces": [ { "binding": "PM_KV", "id": "c3595414472d4f4eb8f85df77b8bf2b5" } ]
+}
