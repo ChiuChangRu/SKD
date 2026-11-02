@@ -1,0 +1,15 @@
+{
+  // 專案排程專用 Worker：與 MyWiki（fieldlog / medapi-mcp）完全獨立，自己的 PIN、自己的儲存空間
+  "name": "pm-schedule",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-07-01",
+  // 保留 Dashboard 設定的 PM_PIN 等 Secret／變數，部署時不會被清掉
+  "keep_vars": true,
+  "vars": {
+    // 只允許這個網頁來源呼叫 API（GitHub Pages 的網站來源，不含路徑）
+    "ALLOWED_ORIGIN": "https://chiuchangru.github.io"
+  },
+  "kv_namespaces": [
+    { "binding": "PM_KV", "id": "c3595414472d4f4eb8f85df77b8bf2b5" }
+  ]
+}

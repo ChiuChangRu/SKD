@@ -1,0 +1,5 @@
+node_modules/
+.wrangler/
+*.xlsx
+*backup*.json
+.dev.vars
