@@ -1972,13 +1972,13 @@ function pmAskPin(msg){return new Promise(res=>{
   const o=document.createElement('div'); o.id='pmLock'; o.style.cssText='position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center';
   o.innerHTML='<form style="display:flex;flex-direction:column;gap:10px;width:min(320px,86vw)"><b style="font-size:20px;color:var(--ink)">📅 專案排程</b><span style="color:var(--mute);font-size:13px">請輸入 PIN</span><input type="password" autocomplete="current-password" style="font-size:16px;padding:8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)"><span class="pmerr" style="color:var(--bad);font-size:13px;min-height:1.2em"></span><button class="act primary" type="submit">進入</button></form>';
   document.body.appendChild(o); const f=o.querySelector('form'), i=o.querySelector('input'); o.querySelector('.pmerr').textContent=msg||''; i.focus();
-  f.onsubmit=e=>{e.preventDefault(); const v=i.value.trim(); if(!v)return; o.remove(); res(v)};
+  f.onsubmit=e=>{e.preventDefault(); const v=i.value.normalize('NFKC').trim(); if(!v)return; o.remove(); res(v)};
 })}
 async function pmLogin(){
   let err='';
   for(;;){
     if(pmPin()){
-      try{ const r=await fetch(PM_API+'/api/ping',{headers:{'x-pin':pmPin()}});
+      try{ const r=await fetch(PM_API+'/api/ping',{headers:{'x-pin':encodeURIComponent(pmPin())}});
         if(r.ok)return;
         if(r.status===429){err=(await r.json().catch(()=>({}))).error||'輸錯次數過多，請稍後再試'; try{sessionStorage.removeItem('pm_pin')}catch{}}
         else {err=r.status===401?'PIN 錯誤':'伺服器回應 '+r.status; try{sessionStorage.removeItem('pm_pin')}catch{}}
@@ -1990,7 +1990,7 @@ async function pmLogin(){
 let PMREADY=pmLogin();
 async function pmFetch(url,o={}){
   await PMREADY;
-  const r=await fetch(PM_API+url,{...o,headers:{'content-type':'application/json','x-pin':pmPin(),...(o.headers||{})}});
+  const r=await fetch(PM_API+url,{...o,headers:{'content-type':'application/json','x-pin':encodeURIComponent(pmPin()),...(o.headers||{})}});
   if(r.status===401||r.status===429){ try{sessionStorage.removeItem('pm_pin')}catch{} PMREADY=pmLogin(); }
   return r;
 }

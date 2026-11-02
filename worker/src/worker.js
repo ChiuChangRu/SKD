@@ -35,8 +35,9 @@ async function auth(env, req) {
   const fk = 'fail:' + ip;
   const f = parseInt((await env.PM_KV.get(fk)) || '0', 10);
   if (f >= MAX_FAIL) return { ok: false, status: 429, error: '輸錯次數過多，請 10 分鐘後再試' };
-  const pin = req.headers.get('x-pin') || '';
-  if (pin && safeEq(pin, env.PM_PIN)) { if (f) await env.PM_KV.delete(fk); return { ok: true }; }
+  const nz = (v) => String(v || '').normalize('NFKC').trim(); // 全形數字／前後空白視為相同
+  let pin = ''; try { pin = nz(decodeURIComponent(req.headers.get('x-pin') || '')); } catch { pin = nz(req.headers.get('x-pin')); }
+  if (pin && safeEq(pin, nz(env.PM_PIN))) { if (f) await env.PM_KV.delete(fk); return { ok: true }; }
   if (pin) await env.PM_KV.put(fk, String(f + 1), { expirationTtl: LOCK_SEC });
   return { ok: false, status: 401, error: 'PIN 錯誤' };
 }
