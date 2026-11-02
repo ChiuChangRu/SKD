@@ -23,3 +23,9 @@
 - CORS 只放行 `ALLOWED_ORIGIN`（與本機測試用的 localhost）。
 - PIN 只存在瀏覽器的 sessionStorage（關掉分頁即清除）；頁面設 `no-referrer`、`noindex`。
 - **備份 JSON 含公司資料，請存在自己的電腦，不要放進此專案。**
+
+## AI 小幫手（自帶 API key）
+
+右上「⚙ AI 設定」貼上自己的 API key（Claude／Gemini／Kimi／OpenAI 相容），做法同 PDCA 品質輔助系統：
+key 只存在瀏覽器（預設關閉分頁就清除），直接送到所選 AI 服務，不經過 Worker、不進資料庫、不進 GitHub。
+小幫手會把「勾選比較的案件」資料送給該 AI 服務，請依公司規定使用。

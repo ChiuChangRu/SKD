@@ -279,7 +279,7 @@ table.lst{border-collapse:collapse;font-size:13px;width:100%}
 table.lst th,table.lst td{border-bottom:1px solid var(--line2);padding:6px 8px;text-align:left;white-space:nowrap}
 table.lst th{background:var(--chrome);font-weight:400;color:var(--mute);border-bottom:1px solid var(--line)}
 table.lst tr.cur td{background:var(--sel)}
-table.lst td.nm{white-space:normal;font-weight:700}
+table.lst td.nm{white-space:normal;font-weight:700;min-width:240px}#caseTbl td,#caseTbl th{white-space:nowrap}#caseTbl td.nm{white-space:normal}#caseTbl td.cal{font-size:12px;color:var(--mute)}
 .bar .cur{max-width:260px;overflow:hidden;text-overflow:ellipsis;font-weight:700}
 .dlc{border:1px solid var(--line);border-radius:3px;padding:12px 14px;margin:0 0 12px;background:var(--bg)}
 .dlc h3{margin:0 0 4px;font-size:14px}
@@ -299,9 +299,9 @@ table.lst td.nm{white-space:normal;font-weight:700}
 .oh{display:flex;justify-content:space-between;align-items:baseline;padding:6px 10px;background:var(--chrome);border-bottom:1px solid var(--line)}
 .oh b{font-size:14px}.ocnt{color:var(--mute);font-size:12px}
 .ob{padding:2px 0}.oe{padding:8px 10px;color:var(--mute);font-size:12px}
-.op{display:grid;grid-template-columns:1fr auto 38px 22px;gap:6px;align-items:center;padding:4px 10px;border-bottom:1px dotted var(--line2);position:relative}
+.op{display:grid;grid-template-columns:1fr auto 76px 22px;gap:6px;align-items:center;padding:4px 10px;border-bottom:1px dotted var(--line2);position:relative}
 .op:last-child{border-bottom:0}
-.op .pr{color:var(--mute);font-size:11px}.op .pc{text-align:right;color:var(--mute);font-size:12px;font-variant-numeric:tabular-nums}
+.op .pr{color:var(--mute);font-size:11px}.op .pc{white-space:nowrap;text-align:right;color:var(--mute);font-size:12px;font-variant-numeric:tabular-nums}
 .op .pw{height:4px;background:var(--line2);display:block}.op .pw i{display:block;height:100%;background:var(--accent)}
 .op .pa{display:none;position:absolute;right:4px;top:2px;bottom:2px;background:var(--bg);align-items:center;gap:4px;padding-left:6px;box-shadow:-6px 0 6px var(--bg)}
 .op:hover .pa{display:flex}.op .pa select{font-size:11px;max-width:84px}.op .pa button,.of button{font:inherit;font-size:11px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:0 6px;cursor:pointer}
@@ -369,7 +369,7 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .dlg-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:80;padding:16px}
 .dlg{background:var(--bg);color:var(--ink);border:1px solid var(--line);max-width:min(520px,100%);width:100%;padding:16px;display:flex;flex-direction:column;gap:12px;border-radius:4px}
 .dlg .m{white-space:pre-wrap;line-height:1.6;max-height:60vh;overflow:auto}
-.dlg input{padding:6px;border:1px solid var(--line);background:var(--bg);width:100%}
+.dlg label{display:flex;flex-direction:column;gap:3px;font-size:13px}.dlg input{padding:6px;border:1px solid var(--line);background:var(--bg);width:100%}
 .dlg .bt{display:flex;gap:8px;justify-content:flex-end}
 .dlg button{padding:6px 16px;border:1px solid var(--line);background:var(--chrome);cursor:pointer}
 .dlg button.ok{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -465,11 +465,12 @@ table.sbt{border-collapse:separate;border-spacing:0;font-size:12.5px;font-varian
 .sbt td.lz{box-shadow:inset 0 0 0 2px var(--warn)}.sbt td.na{color:var(--mute);opacity:.5}.sbt td.st{color:var(--mute);background:var(--sum)}
 .sbt .fg{display:inline-block;font-size:10.5px;border-radius:999px;padding:0 6px;margin-left:3px;color:#fff}.fg.o{background:var(--bad)}.fg.u{background:var(--accent)}.fg.l{background:var(--warn)}.fg.k{background:var(--mute)}
 .sb-note{font-size:12px;color:var(--mute);margin:4px 0}
-</style>
+.opi span,.opi small{white-space:nowrap}</style>
 
 <div class="bar">
   <span class="title">📅 專案排程</span>
   <button id="curCase" hidden type="button"></button><input type="date" id="today" hidden>
+  <button class="act" id="btnAiSet" type="button" title="AI 小幫手設定：貼上你自己的 API key（只存在這個瀏覽器）" style="margin-left:8px">⚙ AI 設定</button>
   <span class="tabs">
   <button class="tab on" data-t="cases" type="button" title="① 宣告／載入案件">① 案件</button>
   <button class="tab" data-t="multi" type="button" title="② 甘特圖：勾選已載入的案件做比較">② 甘特圖</button>
@@ -2118,7 +2119,7 @@ function renderCases(){
       <td>${ci?`<span class="chip ${tagOf(m)==='半'?'pb':'pa'}" data-code="${id}" style="cursor:pointer" title="點一下自訂代號（顯示在甘特圖的條塊裡）；清空＝自動">${esc(tagOf(m))}</span>`:'—'}</td>
       <td>${kindSel(id,m.kind||'',!ci)}</td>
       <td>${ci?ci.n:'—'}</td><td>${ci&&ci.s?fd(ci.s):'—'}</td><td>${ci&&ci.f?fd(ci.f):'—'}</td><td>${mon}</td>
-      <td>${ci?(calWk(m)?'六日休（週一～五）．國定假日照常':'六日休＋國定假日休'):'—'}</td><td>${ci?esc(m.updated||''):'—'}</td></tr>`}).join('')+'</tbody>'; renderDash();
+      <td class="cal" ${ci?`title="${calWk(m)?'六日休（週一～五）．國定假日照常':'六日休＋國定假日休'}"`:''}>${ci?(calWk(m)?'六日休':'六日＋國定假日'):'—'}</td><td>${ci?esc(m.updated||''):'—'}</td></tr>`}).join('')+'</tbody>'; renderDash();
 }
 document.getElementById('caseTbl').addEventListener('click',async e=>{const c=e.target.closest('[data-code]'); if(!c)return; const id=c.dataset.code, ci=caseInfo(id); if(!ci)return;
   const v=await DLG.prompt('案件代號（1～6 字，顯示在甘特圖條塊裡；清空＝自動）',ci.meta.code||tagOf(ci.meta)); if(v==null)return;
@@ -2199,7 +2200,135 @@ async function doMd(scope){
 }
 // ===== AI 小幫手：只問答，不改資料（呼叫 Claude，使用開啟者自己的額度）=====
 const AI={hist:[],ctl:null,busy:false};
-(async()=>{ try{const sm=await window.claude?.use?.('sample'); if(sm){AI.fn=sm; document.getElementById('btnAi').hidden=false}}catch{} })();
+// ===== AI 連線：自帶 API key（做法同 PDCA 品質輔助系統）=====
+// key 只存在你的瀏覽器，直接從網頁送到你選的 AI 服務，不經過任何伺服器（也不經過 pm-schedule Worker）。
+const BYOK_CFG='pm.byok.v1', BYOK_KEY='pm.byok.key';
+const BYOK_PROV={
+  anthropic:{name:'Claude API（Anthropic）',base:'https://api.anthropic.com',model:'claude-sonnet-5-5'},
+  gemini:{name:'Gemini API（Google）',base:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-3.8-flash'},
+  kimi:{name:'Kimi（Moonshot AI）',base:'https://api.moonshot.ai/v1',model:'kimi-k2.6'},
+  openai:{name:'OpenAI 相容格式（GPT、公司私有雲等）',base:'https://api.openai.com/v1',model:''}};
+const BYOK_MODELS={
+  anthropic:[['claude-sonnet-5-5','Claude Sonnet 5.5（建議預設）'],['claude-haiku-5-5','Claude Haiku 5.5（最省）'],['claude-opus-5-5','Claude Opus 5.5（複雜問題）'],['claude-fable-5-1','Claude Fable 5.1（最強、最貴）']],
+  gemini:[['gemini-3.8-flash','Gemini 3.8 Flash（建議預設）'],['gemini-3.5-flash-lite','Gemini 3.5 Flash-Lite（最省）'],['gemini-4-argon','Gemini 4 Argon（旗艦）']],
+  kimi:[['kimi-k2.6','Kimi K2.6（省錢）']],
+  openai:[['gpt-6.1-sol','GPT-6.1 Sol'],['gpt-6-luna','GPT-6 Luna（最省）'],['gpt-5.6-terra','GPT-5.6 Terra']]};
+let BK={provider:'anthropic',base:'',model:'',keep:false,s2t:false}, BKEY='';
+try{Object.assign(BK,JSON.parse(localStorage.getItem(BYOK_CFG)||'{}'))}catch{}
+if(!BYOK_PROV[BK.provider])BK.provider='anthropic';
+try{BKEY=sessionStorage.getItem(BYOK_KEY)||localStorage.getItem(BYOK_KEY)||''}catch{}
+const bkBase=()=>(BK.base||BYOK_PROV[BK.provider].base).replace(/\/+$/,''), bkModel=()=>(BK.model||BYOK_PROV[BK.provider].model).trim();
+const bkUsable=()=>!!bkModel()&&!!BKEY;
+const bkErr=(code,message,text)=>Object.assign(new Error(message||code),{code},text?{text}:{});
+let s2tFn=null,s2tP=null;
+function s2tLoad(){ if(!s2tP)s2tP=new Promise((ok,no)=>{const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/cn2t.js'; s.onload=ok; s.onerror=no; document.head.appendChild(s)}).then(()=>{const c=window.OpenCC.Converter({from:'cn',to:'twp'}); s2tFn=t=>c(t).replace(/臺/g,'台')}).catch(e=>{s2tP=null;throw e}); return s2tP}
+const s2t=t=>(BK.s2t&&s2tFn?s2tFn(t):t);
+async function bkHttpErr(res){
+  let msg=''; try{const j=await res.json(); msg=(j.error&&(j.error.message||j.error.type))||j.message||''}catch{}
+  const st=res.status, m=String(msg).slice(0,200)+` (HTTP ${st})`;
+  if(st===402||/quota|billing|insufficient|balance/i.test(msg))return bkErr('byok_quota','AI 帳戶額度不足：'+m);
+  return bkErr(st===401||st===403?'byok_auth':st===404?'byok_model':st===429?'rate_limited':'upstream_error',
+    (st===401||st===403?'API key 無效或沒有權限：':st===404?'找不到模型（檢查模型名稱）：':st===429?'問得太快或額度用完：':'AI 服務出錯：')+m)}
+async function bkReadSSE(res,onData,signal){
+  const rd=res.body.getReader(), dec=new TextDecoder(); let buf='';
+  for(;;){
+    if(signal&&signal.aborted){try{rd.cancel()}catch{} throw bkErr('aborted')}
+    const {value,done}=await rd.read(); if(done)break;
+    buf+=dec.decode(value,{stream:true}); const lines=buf.split('\n'); buf=lines.pop();
+    for(const ln of lines){const m=ln.match(/^data:\s?(.*)$/); if(m&&m[1].trim()&&m[1].trim()!=='[DONE]'){let j; try{j=JSON.parse(m[1])}catch{continue} onData(j)}}}}
+// 與 claude.ai 的 sample() 同介面：bkSample(input,{tools,signal,onText}) → {text}；支援工具呼叫（list_cases／get_case）
+async function bkSample(input,opts){
+  opts=opts||{}; if(!bkUsable())throw bkErr('byok_nokey','尚未設定 AI（請按上方「⚙ AI 設定」）');
+  if(BK.s2t&&!s2tFn){try{await s2tLoad()}catch{}}
+  const arr=typeof input==='string'?[{role:'user',content:input}]:input, turns=[];
+  arr.forEach(t=>{const l=turns[turns.length-1]; if(l&&l.role===t.role)l.content+='\n\n'+t.content; else turns.push({role:t.role,content:String(t.content)})});
+  const tools=opts.tools||[], byName=Object.fromEntries(tools.map(t=>[t.name,t]));
+  const prov=BK.provider, base=bkBase(), model=bkModel(); const anth=prov==='anthropic';
+  const msgs=turns.map(t=>({...t}));
+  const url=anth?base+'/v1/messages':base+'/chat/completions';
+  const headers=anth?{'content-type':'application/json','x-api-key':BKEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}:{'content-type':'application/json',authorization:'Bearer '+BKEY};
+  for(let round=0;round<8;round++){
+    const body=anth?{model,max_tokens:8000,stream:true,messages:msgs}:{model,stream:true,messages:msgs};
+    if(tools.length){ if(anth)body.tools=tools.map(t=>({name:t.name,description:t.description,input_schema:t.inputSchema||{type:'object',properties:{}}}));
+      else body.tools=tools.map(t=>({type:'function',function:{name:t.name,description:t.description,parameters:t.inputSchema||{type:'object',properties:{}}}})) }
+    if(prov==='kimi'&&/^kimi-k2\.6/i.test(model))body.thinking={type:'disabled'};
+    let res; try{res=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal:opts.signal})}
+    catch(e){ if(opts.signal&&opts.signal.aborted)throw bkErr('aborted'); throw bkErr('byok_network','連不到 AI 服務（網路、網址或瀏覽器擋下）：'+String(e&&e.message||'')) }
+    if(!res.ok)throw await bkHttpErr(res);
+    let text='', blocks=[], calls={}, stop='', failed=null;
+    const push=d=>{ if(!d)return; text+=d; try{opts.onText&&opts.onText({text:s2t(text),delta:d})}catch{} };
+    try{ await bkReadSSE(res,j=>{
+      if(anth){
+        if(j.type==='content_block_start'){ const cb=j.content_block||{}; blocks[j.index]=cb.type==='tool_use'?{type:'tool_use',id:cb.id,name:cb.name,_j:''}:{type:'text',text:''} }
+        else if(j.type==='content_block_delta'&&j.delta){ const b=blocks[j.index]; if(j.delta.type==='text_delta'){push(j.delta.text); if(b)b.text+=j.delta.text} else if(j.delta.type==='input_json_delta'&&b)b._j+=j.delta.partial_json||'' }
+        else if(j.type==='message_delta'&&j.delta)stop=j.delta.stop_reason||stop;
+        else if(j.type==='error')failed=bkErr('upstream_error',(j.error&&j.error.message)||'AI 服務出錯');
+      }else{
+        if(j.error)failed=bkErr('upstream_error',j.error.message||'AI 服務出錯');
+        const c=j.choices&&j.choices[0]; if(!c)return;
+        if(c.delta){ if(typeof c.delta.content==='string')push(c.delta.content);
+          (c.delta.tool_calls||[]).forEach(tc=>{const k=tc.index||0; const o=calls[k]=calls[k]||{id:'',name:'',args:''}; if(tc.id)o.id=tc.id; if(tc.function){if(tc.function.name)o.name+=tc.function.name; if(tc.function.arguments)o.args+=tc.function.arguments}}) }
+        if(c.finish_reason)stop=c.finish_reason;
+      }},opts.signal) }
+    catch(e){ if(e&&e.code)throw Object.assign(e,text?{text:s2t(text)}:{}); throw bkErr('upstream_error',String(e&&e.message||''),s2t(text)) }
+    if(failed)throw Object.assign(failed,text?{text:s2t(text)}:{});
+    const tc=anth?blocks.filter(b=>b&&b.type==='tool_use'):Object.values(calls).filter(c=>c.name);
+    if(tc.length&&(stop==='tool_use'||stop==='tool_calls'||stop==='stop')){
+      const parse=s=>{try{return s?JSON.parse(s):{}}catch{return {}}};
+      const run=async(name,inp)=>{const t=byName[name]; if(!t)return {err:true,out:'沒有這個工具：'+name}; try{const r=await t.execute(inp); return {out:typeof r==='string'?r:JSON.stringify(r)}}catch(e){return {err:true,out:'工具執行失敗：'+(e&&e.message||e)}}};
+      if(anth){
+        msgs.push({role:'assistant',content:blocks.filter(Boolean).map(b=>b.type==='tool_use'?{type:'tool_use',id:b.id,name:b.name,input:parse(b._j)}:{type:'text',text:b.text}).filter(b=>b.type!=='text'||b.text)});
+        const rs=[]; for(const b of tc){const r=await run(b.name,parse(b._j)); rs.push({type:'tool_result',tool_use_id:b.id,content:r.out,...(r.err?{is_error:true}:{})})}
+        msgs.push({role:'user',content:rs});
+      }else{
+        msgs.push({role:'assistant',content:text||null,tool_calls:tc.map(c=>({id:c.id,type:'function',function:{name:c.name,arguments:c.args||'{}'}}))});
+        for(const c of tc){const r=await run(c.name,parse(c.args)); msgs.push({role:'tool',tool_call_id:c.id,content:r.out})}
+      }
+      continue;
+    }
+    if(!text.trim())throw bkErr('empty_completion','AI 沒有回答內容');
+    return {text:s2t(text),truncated:stop==='max_tokens'||stop==='length'};
+  }
+  throw bkErr('upstream_error','工具呼叫次數過多，已停止');
+}
+function aiRefresh(){ AI.fn=bkUsable()?bkSample:(AI.claude||null); document.getElementById('btnAi').hidden=!AI.fn; const b=document.getElementById('btnAiSet'); if(b)b.textContent=bkUsable()?'⚙ AI 設定 ✓':'⚙ AI 設定' }
+(async()=>{ try{const sm=await window.claude?.use?.('sample'); if(sm)AI.claude=sm}catch{} aiRefresh() })();
+function aiSettings(){
+  const ov=document.createElement('div'); ov.className='dlg-ov';
+  const provOpts=Object.entries(BYOK_PROV).map(([k,v])=>`<option value="${k}">${esc(v.name)}</option>`).join('');
+  ov.innerHTML=`<div class="dlg" style="max-width:min(560px,100%)"><b style="font-size:16px">⚙ AI 設定（自帶 API key）</b>
+    <div class="m" style="font-size:13px;color:var(--mute)">key 只存在你的瀏覽器，直接送到你選的 AI 服務，不經過 pm-schedule Worker，也不會存進資料庫或 GitHub。費用由 key 的擁有者負擔。小幫手會把「勾選比較的案件」的任務、人員、日期送給該 AI 服務，送出前請確認符合公司規定。</div>
+    <label>AI 提供者<select id="bkProv">${provOpts}</select></label>
+    <label>API key<input type="password" id="bkKey" autocomplete="new-password" spellcheck="false" placeholder=""></label>
+    <label>模型<select id="bkModelSel"></select></label>
+    <label id="bkCW" hidden>自訂模型名稱<input type="text" id="bkModelC" spellcheck="false"></label>
+    <label>API 網址（已填預設，通常不用改）<input type="text" id="bkBase" spellcheck="false"></label>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="bkKeep" style="width:auto"> 把 key 記在這個瀏覽器（共用電腦請不要勾；不勾則關閉分頁就清除）</label>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="bkS2t" style="width:auto"> 把回答自動轉成繁體（Kimi 等常混入簡體字時勾選）</label>
+    <div class="m" id="bkHint" style="font-size:13px"></div>
+    <div class="bt"><button class="act" id="bkClear" type="button">清除 key</button><button class="act" id="bkTest" type="button">測試連線</button><button class="act primary" id="bkSave" type="button">儲存並啟用</button><button class="act" id="bkClose" type="button">關閉</button></div></div>`;
+  document.body.appendChild(ov); const $=s=>ov.querySelector(s); let custom=false;
+  const fill=()=>{ const P=BYOK_PROV[BK.provider], ms=BYOK_MODELS[BK.provider]||[], cur=bkModel(), pre=ms.find(m=>m[0]===cur);
+    $('#bkProv').value=BK.provider; const isC=custom||(!pre&&!!cur);
+    $('#bkModelSel').innerHTML=(cur||custom?'':'<option value="">請選擇模型…</option>')+ms.map(m=>`<option value="${m[0]}">${esc(m[1])}</option>`).join('')+'<option value="__c">自訂（手動輸入）</option>';
+    $('#bkModelSel').value=isC?'__c':pre?pre[0]:''; $('#bkCW').hidden=!isC; $('#bkModelC').value=isC?BK.model:'';
+    $('#bkBase').placeholder=P.base; $('#bkBase').value=BK.base||P.base; $('#bkKeep').checked=!!BK.keep; $('#bkS2t').checked=!!BK.s2t;
+    $('#bkKey').placeholder=BKEY?'（已輸入，結尾 '+BKEY.slice(-4)+'；要更換再貼新的）':'貼上後按「儲存並啟用」'; $('#bkClear').disabled=!BKEY; };
+  fill();
+  $('#bkProv').onchange=e=>{BK.provider=e.target.value; BK.base=''; BK.model=''; custom=false; BK.s2t=BK.provider==='kimi'; fill()};
+  $('#bkModelSel').onchange=e=>{ if(e.target.value==='__c'){custom=true; BK.model=''; fill(); $('#bkModelC').focus()} else {custom=false; BK.model=e.target.value; fill()} };
+  const readForm=()=>{ BK.base=$('#bkBase').value.trim(); BK.model=($('#bkModelSel').value==='__c'?$('#bkModelC').value:$('#bkModelSel').value).trim(); BK.keep=$('#bkKeep').checked; BK.s2t=$('#bkS2t').checked; const k=$('#bkKey').value.trim(); if(k)BKEY=k; $('#bkKey').value=''; };
+  const persist=()=>{ try{localStorage.setItem(BYOK_CFG,JSON.stringify(BK)); sessionStorage.setItem(BYOK_KEY,BKEY); if(BK.keep&&BKEY)localStorage.setItem(BYOK_KEY,BKEY); else localStorage.removeItem(BYOK_KEY); if(!BKEY)sessionStorage.removeItem(BYOK_KEY)}catch{} };
+  $('#bkSave').onclick=()=>{ readForm(); persist(); aiRefresh(); fill(); $('#bkHint').textContent=bkUsable()?'已啟用。可按「測試連線」確認。':!bkModel()?'請選擇或填寫模型。':'請輸入 API key。' };
+  $('#bkClear').onclick=()=>{ BKEY=''; persist(); aiRefresh(); fill(); $('#bkHint').textContent='已清除 key。' };
+  $('#bkTest').onclick=async()=>{ readForm(); persist(); aiRefresh(); if(!bkUsable()){$('#bkHint').textContent=!bkModel()?'請選擇或填寫模型。':'請輸入 API key。'; return}
+    $('#bkTest').disabled=true; $('#bkHint').textContent='測試中…'; const t0=Date.now();
+    try{const r=await bkSample('請只用繁體中文回答兩個字：正常'); $('#bkHint').textContent=`連線成功（${((Date.now()-t0)/1000).toFixed(1)} 秒）：「${r.text.trim().slice(0,40)}」`}
+    catch(e){$('#bkHint').textContent='連線失敗：'+(e&&e.message||e)} finally{$('#bkTest').disabled=false} };
+  $('#bkClose').onclick=()=>ov.remove(); ov.addEventListener('mousedown',e=>{if(e.target===ov)ov.remove()});
+}
+document.getElementById('btnAiSet').addEventListener('click',aiSettings);
+
 function aiFit(p){ // 整個視窗必須留在畫面內（換螢幕／縮放後，舊位置可能跑到畫面外）
   if(!p||p.hidden)return; const r=p.getBoundingClientRect(); if(!r.width)return;
   const w=Math.min(r.width,innerWidth-8), h=Math.min(r.height,innerHeight-8), l=Math.max(0,Math.min(innerWidth-w,r.left)), t=Math.max(0,Math.min(innerHeight-h,r.top));
@@ -2289,7 +2418,7 @@ ${ctx}`;
     aiProposal(text,out,ent); aiCaseProposal(text,out,ent);
   }catch(e){ const c=e&&e.code;
     if(c==='aborted'||(e&&e.name==='AbortError')){ if(e.text)out.textContent=e.text+'\n（已停止）'; else out.textContent='（已停止）' }
-    else{ out.className='am e'; out.textContent=c==='not_granted'?'沒有允許使用 Claude，小幫手無法回答（可重新整理後再允許）。':c==='rate_limited'?'問得太快了，請稍等一下再問。':'小幫手出錯：'+((e&&(e.message||c))||e); if(e&&e.text)out.textContent=e.text+'\n\n'+out.textContent }
+    else{ out.className='am e'; out.textContent=c==='not_granted'?'沒有允許使用 Claude，小幫手無法回答（可重新整理後再允許）。':c==='rate_limited'&&!(e&&e.message&&/HTTP/.test(e.message))?'問得太快了，請稍等一下再問。':'小幫手出錯：'+((e&&(e.message||c))||e); if(e&&e.text)out.textContent=e.text+'\n\n'+out.textContent }
   }finally{ AI.busy=false; AI.ctl=null; btn.dataset.ai='send'; btn.textContent='送出' }
 }
 document.getElementById('btnAi').addEventListener('click',aiPanel);
@@ -2737,31 +2866,36 @@ let ORG={units:[],roles:{},left:[]}, ORG_DIRTY=false, ORG_LOADED=false;
 async function loadOrg(){ if(ORG_LOADED)return; ORG_LOADED=true;
   if(!ORG_ENTRY)return; try{const e=await api('/entries/'+ORG_ENTRY.id); const o=parseBody(e.body); ORG={units:o.units||[],roles:o.roles||{},left:o.left||[]}}catch(err){document.getElementById('msg').textContent='組織圖讀取失敗：'+err.message}}
 const splitP=s=>String(s||'').split(/[、,，\s]+/).filter(Boolean);
-function orgStats(){ // 人員在「已載入案件」的任務數與工天（主辦＝rd、協辦＝co）
+let ORG_SCOPE='cur', ORG_ALLP=false;
+function orgStats(ids){ // 人員在「已載入案件」的任務數與工天（主辦＝rd、協辦＝co）
   const st={}; const add=(n,k,wd)=>{(st[n]=st[n]||{rd:0,co:0,wd:0})[k]++; st[n].wd+=wd};
-  for(const id of LOADED){const j=CASES[id]; if(!j)continue; const tasks=String(id)===CUR_ID?D:(j.tasks||[]);
+  for(const id of (ids||LOADED)){const j=CASES[id]; if(!j)continue; const tasks=String(id)===CUR_ID?D:(j.tasks||[]);
     for(const r of tasks){if(r.t===PH||r.t==='sum')continue; const wd=r.dur||0; splitP(r.rd).forEach(n=>add(n,'rd',wd)); splitP(r.co).forEach(n=>add(n,'co',0))}}
   return st}
 async function renderOrg(){
   const b=document.getElementById('orgBody'); await loadOrg();
-  const stats=orgStats(); const assigned=new Set(ORG.units.flatMap(u=>(u.people||[]).map(p=>p.n)));
+  const scopeIds=ORG_SCOPE==='cur'?[CUR_ID]:[...LOADED]; const stats=orgStats(scopeIds); const vis=n=>ORG_ALLP||!!stats[n]; const assigned=new Set(ORG.units.flatMap(u=>(u.people||[]).map(p=>p.n)));
   const left=new Set(ORG.left||[]); const pool=Object.keys(stats).filter(n=>!assigned.has(n)&&!left.has(n)&&hrIsP(n)).sort();
   const unitNames=ORG.units.map(u=>u.name);
   const maxWd=Math.max(1,...Object.values(stats).map(s=>s.wd||0));
-  const person=(p,ui)=>{const s=stats[p.n]; return `<div class="op" title="${s?`主辦 ${s.rd} 項、協辦 ${s.co} 項、主辦工天合計 ${s.wd}（已載入案件）`:'已載入案件中沒有任務'}"><span class="pn">${esc(p.n)}</span><span class="pr">${esc(p.r||'')}</span><span class="pw"><i style="width:${s?Math.round((s.wd||0)/maxWd*100):0}%"></i></span><span class="pc">${s?s.rd:''}</span>
+  const person=(p,ui)=>{const s=stats[p.n]; return `<div class="op" title="${s?`主辦 ${s.rd} 項、協辦 ${s.co} 項、主辦工天合計 ${s.wd}`:'此範圍的案件中沒有任務'}"><span class="pn">${esc(p.n)}</span><span class="pr">${esc(p.r||'')}</span><span class="pw"><i style="width:${s?Math.round((s.wd||0)/maxWd*100):0}%"></i></span><span class="pc">${s?`主${s.rd}${s.co?` 協${s.co}`:''}`:''}</span>
       <span class="pa"><select data-mv="${ui}|${esc(p.n)}" title="移到其他單位"><option value="">移…</option>${unitNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}<option value="__pool">（移出單位）</option></select><button data-rl="${ui}|${esc(p.n)}" title="設定職稱">職稱</button><button data-pdel="${ui}|${esc(p.n)}" title="離職／刪除：從組織圖移除，列入「已離職」">刪除</button></span></div>`};
-  const node=(u,i)=>{const kids=ORG.units.map((x,k)=>({x,k})).filter(o=>o.x.up===u.name); const n=(u.people||[]).length;
+  const vp=u=>(u.people||[]).filter(p=>vis(p.n)); const hasVis=u=>vp(u).length||ORG.units.some(x=>x.up===u.name&&hasVis(x));
+  const node=(u,i)=>{const kids=ORG.units.map((x,k)=>({x,k})).filter(o=>o.x.up===u.name&&hasVis(o.x)); const n=vp(u).length;
     return `<li><div class="onode"><div class="oh"><b>${esc(u.name)}</b><span class="ocnt">${n} 人</span></div>
-      <div class="ob">${(u.people||[]).map(p=>person(p,i)).join('')||'<div class="oe">尚無人員</div>'}</div>
+      <div class="ob">${vp(u).map(p=>person(p,i)).join('')||'<div class="oe">此案件無人員</div>'}</div>
       <div class="of"><select data-up="${i}" title="上層單位"><option value="">（最上層）</option>${unitNames.filter(x=>x!==u.name).map(x=>`<option value="${esc(x)}" ${u.up===x?'selected':''}>隸屬：${esc(x)}</option>`).join('')}</select><button data-ren="${i}" type="button">改名</button><button data-del="${i}" type="button">刪除</button></div></div>
       ${kids.length?`<ul>${kids.map(o=>node(o.x,o.k)).join('')}</ul>`:''}</li>`};
-  const tops=ORG.units.map((u,i)=>({u,i})).filter(o=>!o.u.up||!unitNames.includes(o.u.up));
+  const tops=ORG.units.map((u,i)=>({u,i})).filter(o=>(!o.u.up||!unitNames.includes(o.u.up))&&hasVis(o.u));
   b.innerHTML=`<h2>組織圖（單位與人員）</h2>
-    <div class="pgbar"><button class="act" data-org="add" type="button">＋ 新增單位</button><button class="act primary" data-org="save" type="button" ${ORG_DIRTY?'':'disabled'}>💾 存組織圖</button><span class="dirty">${ORG_DIRTY?'● 尚未存檔':''}</span></div>
-    <div class="orgwrap"><ul class="orgt"><li><div class="onode root"><b>邦特</b><span>${ORG.units.reduce((a,u)=>a+(u.people||[]).length,0)} 人</span></div>
+    <div class="pgbar"><button class="act" data-org="add" type="button">＋ 新增單位</button><button class="act primary" data-org="save" type="button" ${ORG_DIRTY?'':'disabled'}>💾 存組織圖</button><span class="dirty">${ORG_DIRTY?'● 尚未存檔':''}</span>
+      <label style="margin-left:14px">範圍：<select data-orgscope="1"><option value="cur" ${ORG_SCOPE==='cur'?'selected':''}>目前案件</option><option value="loaded" ${ORG_SCOPE==='loaded'?'selected':''}>已勾選比較的案件</option></select></label>
+      <label><input type="checkbox" data-orgall="1" ${ORG_ALLP?'checked':''}> 也顯示未參與的人員</label></div>
+    <p class="note">人員來自案件任務的「主辦／協辦」欄（匯入 Excel 時帶入）；單位由你指定，不指定也可以，組織圖可以空著。單位指定是全公司共用，換案件時只顯示該案參與的人。</p>
+    <div class="orgwrap"><ul class="orgt"><li><div class="onode root"><b>邦特</b><span>${ORG.units.reduce((a,u)=>a+vp(u).length,0)} 人</span></div>
       ${tops.length?`<ul>${tops.map(o=>node(o.u,o.i)).join('')}</ul>`:''}</li></ul></div>
-    ${tops.length?'':'<p class="note">尚未建立單位，請按「＋ 新增單位」。</p>'}
-    ${pool.length?`<div class="opool"><div class="oh"><b>待歸屬</b><span class="ocnt">${pool.length} 人</span></div><div class="opl">${pool.map(n=>`<label class="opi"><span>${esc(n)}</span><small>${(stats[n]||{}).rd||0} 項</small><select data-pool="${esc(n)}"><option value="">指定到…</option>${unitNames.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('')}</select><button type="button" class="opx" data-pooldel="${esc(n)}" title="離職／刪除">✕</button></label>`).join('')}</div></div>`:''}
+    ${tops.length?'':'<p class="note">這個範圍尚無已歸屬單位的人員（可先空著）。</p>'}
+    ${pool.length?`<div class="opool"><div class="oh"><b>待歸屬</b><span class="ocnt">${pool.length} 人</span></div><div class="opl">${pool.map(n=>`<label class="opi"><span>${esc(n)}</span><small>${stats[n]?`主辦 ${stats[n].rd}${stats[n].co?`／協辦 ${stats[n].co}`:''}`:''}</small><select data-pool="${esc(n)}"><option value="">指定到…</option>${unitNames.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('')}</select><button type="button" class="opx" data-pooldel="${esc(n)}" title="離職／刪除">✕</button></label>`).join('')}</div></div>`:''}
     ${left.size?`<details class="oleft"><summary>已離職（${left.size} 人）</summary><div class="opl">${[...left].sort().map(n=>`<span class="opi"><span>${esc(n)}</span><small>${(stats[n]||{}).rd||0} 項任務仍掛名</small><button type="button" class="opx" data-prest="${esc(n)}" title="復原到「待歸屬」">復原</button></span>`).join('')}</div></details>`:''}`;
 }
 document.getElementById('orgBody').addEventListener('click',async e=>{
@@ -2779,6 +2913,7 @@ document.getElementById('orgBody').addEventListener('click',async e=>{
   else if(t.dataset.org==='save'){await saveOrg()}
 });
 document.getElementById('orgBody').addEventListener('change',e=>{
+  if(e.target.dataset.orgscope){ORG_SCOPE=e.target.value;renderOrg();return} if(e.target.dataset.orgall){ORG_ALLP=e.target.checked;renderOrg();return}
   const mv=e.target.closest('[data-mv]'), pl=e.target.closest('[data-pool]'), up=e.target.closest('[data-up]'); const v=e.target.value;
   if(up){const u=ORG.units[+up.dataset.up]; if(v)u.up=v; else delete u.up; ORG_DIRTY=true; renderOrg(); return}
   if(pl&&v){const u=ORG.units.find(x=>x.name===v); if(u){(u.people=u.people||[]).push({n:pl.dataset.pool}); ORG_DIRTY=true; renderOrg()} return}
