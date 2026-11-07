@@ -2110,7 +2110,7 @@ function renderDash(){return;
 function renderCases(){
   const t=document.getElementById('caseTbl');
   if(!ENTRIES.length){t.innerHTML='<tr><td class="note">（尚無案件，請按「＋ 新增案件」）</td></tr>';renderDash();return}
-  t.innerHTML=`<thead><tr><th title="同一時間只能開啟一個案件，「③ 任務」「④ 下載」都針對它">開啟檔案</th><th title="可多選；開啟中的案件一定在比較裡">加入比較</th><th>案件</th><th>代號</th><th title="新案（全新／新世代產品）、舊品改善（重大／輕微變更）；直接在表內選，會立刻存回資料庫">檔案屬性</th><th>任務數</th><th>開始</th><th>完成</th><th>歷時</th><th>行事曆</th><th>更新</th></tr></thead><tbody>`+ENTRIES.map(e=>{
+  t.innerHTML=`<thead><tr><th title="同一時間只能開啟一個案件，「③ 任務」「④ 下載」都針對它">開啟檔案</th><th title="可多選；開啟中的案件一定在比較裡">加入比較</th><th>案件</th><th>代號</th><th title="新案（全新／新世代產品）、舊品改善（重大／輕微變更）；直接在表內選，會立刻存回資料庫">檔案屬性</th><th>任務數</th><th>開始</th><th>完成</th><th>歷時</th><th>行事曆</th><th>更新</th><th>刪除</th></tr></thead><tbody>`+ENTRIES.map(e=>{
     const id=String(e.id), ld=LOADED.has(id), cur=id===CUR_ID, ci=ld?caseInfo(id):null, m=ci?ci.meta:{};
     const mon=ci&&ci.s?((ci.f-ci.s)/864e5/30.4375).toFixed(1)+' 月':'—';
     return `<tr class="${cur?'cur':''}"><td><input type="radio" name="curc" data-cur="${id}" ${cur?'checked':''}></td>
@@ -2119,9 +2119,22 @@ function renderCases(){
       <td>${ci?`<span class="chip ${tagOf(m)==='半'?'pb':'pa'}" data-code="${id}" style="cursor:pointer" title="點一下自訂代號（顯示在甘特圖的條塊裡）；清空＝自動">${esc(tagOf(m))}</span>`:'—'}</td>
       <td>${kindSel(id,m.kind||'',!ci)}</td>
       <td>${ci?ci.n:'—'}</td><td>${ci&&ci.s?fd(ci.s):'—'}</td><td>${ci&&ci.f?fd(ci.f):'—'}</td><td>${mon}</td>
-      <td class="cal" ${ci?`title="${calWk(m)?'六日休（週一～五）．國定假日照常':'六日休＋國定假日休'}"`:''}>${ci?(calWk(m)?'六日休':'六日＋國定假日'):'—'}</td><td>${ci?esc(m.updated||''):'—'}</td></tr>`}).join('')+'</tbody>'; renderDash();
+      <td class="cal" ${ci?`title="${calWk(m)?'六日休（週一～五）．國定假日照常':'六日休＋國定假日休'}"`:''}>${ci?(calWk(m)?'六日休':'六日＋國定假日'):'—'}</td><td>${ci?esc(m.updated||''):'—'}</td><td><button type="button" class="btn-del" data-delcase="${id}" title="刪除這個案件（從資料庫移除，無法復原）" style="cursor:pointer;border:1px solid var(--line,#ccc);background:none;border-radius:6px;padding:2px 8px">🗑</button></td></tr>`}).join('')+'</tbody>'; renderDash();
 }
-document.getElementById('caseTbl').addEventListener('click',async e=>{const c=e.target.closest('[data-code]'); if(!c)return; const id=c.dataset.code, ci=caseInfo(id); if(!ci)return;
+document.getElementById('caseTbl').addEventListener('click',async e=>{
+  const dl=e.target.closest('[data-delcase]');
+  if(dl){const id=dl.dataset.delcase, en=ENTRIES.find(x=>String(x.id)===id); if(!en)return; const st=document.getElementById('msg'), nm=en.title.slice(PM_PREFIX.length), isCur=id===CUR_ID;
+    if(!await DLG.confirm(`刪除案件「${nm}」？\n\n會從資料庫永久移除，無法復原。${isCur?'\n\n這是目前開啟的案件'+(DIRTY?'，且尚有未存檔的修改':'')+'，刪除後會自動改開其他案件。':''}`))return;
+    try{st.textContent='刪除中…'; const r=await pmFetch('/api/entries/'+encodeURIComponent(id),{method:'DELETE'});
+      if(!r.ok){const b=await r.json().catch(()=>({})); throw new Error(b.error||('HTTP '+r.status))}
+      delete CASES[id]; LOADED.delete(id); saveLoaded(); ENTRIES=ENTRIES.filter(x=>String(x.id)!==id);
+      try{if(localStorage.getItem('pm_last_entry')===id)localStorage.removeItem('pm_last_entry')}catch{}
+      if(isCur){DIRTY=false; CUR_ID=null; if(ENTRIES.length){await loadProjects(true)} else {renderCases(); st.textContent='案件已全部刪除，請按「＋ 新增案件」'}}
+      else renderCases();
+      if(isCur&&ENTRIES.length)st.textContent=''; else if(!isCur)st.textContent='已刪除「'+nm+'」';
+    }catch(err){st.textContent='刪除失敗：'+err.message}
+    return}
+  const c=e.target.closest('[data-code]'); if(!c)return; const id=c.dataset.code, ci=caseInfo(id); if(!ci)return;
   const v=await DLG.prompt('案件代號（1～6 字，顯示在甘特圖條塊裡；清空＝自動）',ci.meta.code||tagOf(ci.meta)); if(v==null)return;
   try{document.getElementById('msg').textContent='儲存中…'; await saveMeta(id,m=>{const t=v.trim().slice(0,6); if(t)m.code=t; else delete m.code},'已儲存代號'); renderCases(); if(D.length)render()}catch(err){document.getElementById('msg').textContent='儲存失敗：'+err.message}});
 document.getElementById('caseTbl').addEventListener('change',async e=>{
