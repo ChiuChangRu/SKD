@@ -406,6 +406,9 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .g-row.dp-me .g-name::after{content:"　● 選取";font-weight:700}
 @keyframes pmNoPre{0%,100%{background:#d92d20}50%{background:#ff9d96}}
 .g-bar.nopre{animation:pmNoPre 1.2s ease-in-out infinite}
+.g-bar.dp-target{outline:3px solid #1f6feb;outline-offset:2px;box-shadow:0 0 0 5px rgba(31,111,235,.35);z-index:5}
+.g-bar.dp-bad{outline:3px solid #d92d20;outline-offset:2px;opacity:.6;z-index:5}
+.g-row.dp-target .g-name::after{content:"　◀ 放開＝設為前案";color:#1f6feb;font-weight:700}
 .g-bar.nopre .bl.bin,.g-bar.nopre .bwho,.g-bar.nopre .bcode{color:#fff}
 @media (prefers-reduced-motion:reduce){.g-bar.nopre{animation:none;background:#d92d20}}
 .g-row.dp-me.dp-nopre .g-name::after{content:"　⚠ 無前案";color:#d92d20;font-weight:700}
@@ -1006,7 +1009,17 @@ function depRel(key){
   rs.forEach(x=>{ if(x.sm==='fix')return; (x.pk||[]).forEach((pk,i)=>{ if(pk===tk){const w=(x.pw||[])[i]||[]; suc.push({r:x,t:w[1]||'FS',l:w[2]||0})} }) });
   return {me,pre,suc,cid};
 }
-function depNoPre(r){return r.sm!=='fix'&&r.sm!=='xls'&&!(r.pk||[]).length}   // 指定日期／Excel 原樣鎖定本來就不吃前置任務，不算漏設
+function depNoPre(r){ if(!r||r.sm==='fix'||r.sm==='xls')return false; return !(r.pk?r.pk.length:(r.pred||[]).length) }
+function depCycle(fromK,toK){ const seen=new Set(), st=[toK];   // toK 若已經（直接或間接）排在 fromK 後面，就不能再把它當前案
+  while(st.length){const k=st.pop(); if(k===fromK)return true; if(seen.has(k))continue; seen.add(k); const q=byK[k]; if(q)(q.pred||[]).forEach(([p])=>st.push(p))} return false }
+// 拖到哪個任務上？回傳可以關聯的目標，或不能關聯的原因
+function depDropAt(x,y,me,selfBar){ const el=document.elementFromPoint(x,y), tb=el&&el.closest&&el.closest('.g-bar[data-bk]');
+  if(!tb||tb===selfBar)return null; const bk=tb.dataset.bk, i=bk.indexOf('|'), cid=bk.slice(0,i), tk=bk.slice(i+1);
+  if(cid!==CUR_ID)return {bar:tb,err:'不同案件不能互相關聯'};
+  if(tk===me.k)return null; const q=byK[tk]; if(!q)return null;
+  if(q.sm==='xls')return {bar:tb,err:'Excel 原樣（鎖定）的任務不能當前案'};
+  if(depCycle(me.k,tk))return {bar:tb,err:'不行：這個任務已經排在後面，會變成循環'};
+  return {bar:tb,k:tk,q} }   // 指定日期／Excel 原樣鎖定本來就不吃前置任務，不算漏設
 function depBar(rel){
   let b=document.getElementById('depbar'); if(!rel){if(b)b.remove();return}
   if(!b){b=document.createElement('div'); b.id='depbar'; document.body.appendChild(b); b.onclick=e=>{ if(e.target.dataset.a==='depx'){DEPK=null;applyDep();return}
@@ -1302,11 +1315,25 @@ document.getElementById('mg').addEventListener('pointerdown',e=>{
   const r=byK[bar.dataset.k]; if(!r||!r.s)return; if(r.sm==='xls'){document.getElementById('msg').textContent='Excel 原樣（鎖定）：日期、工期等 Excel 內容不能修改';return}
   const track=bar.parentElement.getBoundingClientRect();
   const grp=MSEL.size>1&&MSEL.has(r.k); if(MSEL.size&&!MSEL.has(r.k))clearSel();
-  DRAG={bar,r,x0:e.clientX,mode:e.target.classList.contains('gh')?'resize':'move',pxPerDay:track.width/GAX.span,left0:bar.offsetLeft,w0:bar.offsetWidth,moved:false,group:grp,gb:grp?[...document.getElementById('mg').querySelectorAll('.g-bar.sel.ed')].map(b=>({bar:b,w0:b.offsetWidth})):[]};
+  DRAG={bar,r,x0:e.clientX,y0:e.clientY,canLink:!grp&&depNoPre(r),link:null,mode:e.target.classList.contains('gh')?'resize':'move',pxPerDay:track.width/GAX.span,left0:bar.offsetLeft,w0:bar.offsetWidth,moved:false,group:grp,gb:grp?[...document.getElementById('mg').querySelectorAll('.g-bar.sel.ed')].map(b=>({bar:b,w0:b.offsetWidth})):[]};
   bar.setPointerCapture(e.pointerId); e.preventDefault();
 });
 document.getElementById('mg').addEventListener('pointermove',e=>{
-  if(!DRAG)return; const dx=e.clientX-DRAG.x0; if(Math.abs(dx)>3)DRAG.moved=true; if(!DRAG.moved)return;
+  if(!DRAG)return; const dx=e.clientX-DRAG.x0, dy=e.clientY-DRAG.y0;
+  if(Math.abs(dx)>3||(DRAG.canLink&&Math.abs(dy)>14))DRAG.moved=true; if(!DRAG.moved)return;
+  if(DRAG.canLink&&Math.abs(dy)>14){            // 無前案的任務：拖到另一個任務上放掉＝把它設成前案
+    const hit=depDropAt(e.clientX,e.clientY,DRAG.r,DRAG.bar);
+    document.querySelectorAll('.g-bar.dp-target,.g-bar.dp-bad').forEach(b=>{b.classList.remove('dp-target','dp-bad'); const rw=b.closest('.g-row'); if(rw)rw.classList.remove('dp-target')});
+    DRAG.link=hit&&!hit.err?hit:null; DRAG.linkMode=true;
+    if(hit){hit.bar.classList.add(hit.err?'dp-bad':'dp-target'); if(!hit.err){const rw=hit.bar.closest('.g-row'); if(rw)rw.classList.add('dp-target')}}
+    DRAG.bar.style.transform=''; DRAG.bar.style.width=DRAG.w0+'px';
+    let tp=document.getElementById('dragTip'); if(!tp){tp=document.createElement('div');tp.id='dragTip';document.body.appendChild(tp)}
+    tp.innerHTML=hit?(hit.err?`<b style="color:#ff9d96">${esc(hit.err)}</b>`:`<b>放開＝設為前案</b><br>${esc(byK[hit.k].name)}<br><span>完成後接著做「${esc(DRAG.r.name)}」</span>`)
+      :'<b>拖到要當前案的任務上</b><br><span>放在空白處放開＝取消；左右拖＝改日期</span>';
+    tp.style.left=Math.min(innerWidth-210,e.clientX+14)+'px'; tp.style.top=Math.max(4,e.clientY-62)+'px';
+    document.getElementById('msg').textContent=hit&&!hit.err?`放開＝把「${byK[hit.k].name}」設為「${DRAG.r.name}」的前案`:(hit&&hit.err||'拖到要當前案的任務上；放在空白處放開＝取消');
+    return}
+  if(DRAG.linkMode||DRAG.link||document.querySelector('.g-bar.dp-target,.g-bar.dp-bad')){DRAG.link=null; DRAG.linkMode=false; document.querySelectorAll('.g-bar.dp-target,.g-bar.dp-bad').forEach(b=>{b.classList.remove('dp-target','dp-bad'); const rw=b.closest('.g-row'); if(rw)rw.classList.remove('dp-target')})}
   const sx=Math.round(dx/DRAG.pxPerDay)*DRAG.pxPerDay; if(DRAG.mode==='move')DRAG.bar.style.transform=`translateX(${sx}px)`; else DRAG.bar.style.width=Math.max(4,DRAG.w0+sx)+'px';
   (DRAG.gb||[]).forEach(x=>{if(x.bar===DRAG.bar)return; if(DRAG.mode==='move')x.bar.style.transform=`translateX(${sx}px)`; else x.bar.style.width=Math.max(4,x.w0+sx)+'px'});
   const days=Math.round(dx/DRAG.pxPerDay);
@@ -1334,6 +1361,13 @@ document.getElementById('mg').addEventListener('pointerdown',e=>{
 });
 document.getElementById('mg').addEventListener('pointerup',e=>{
   if(!DRAG)return; const d=DRAG; DRAG=null; d.bar.style.transform=''; (d.gb||[]).forEach(x=>{x.bar.style.transform=''}); const dt=document.getElementById('dragTip'); if(dt)dt.remove();
+  document.querySelectorAll('.g-bar.dp-target,.g-bar.dp-bad').forEach(b=>{b.classList.remove('dp-target','dp-bad'); const rw=b.closest('.g-row'); if(rw)rw.classList.remove('dp-target')});
+  if(d.linkMode&&!d.link){d.bar.style.width=''; render(); document.getElementById('msg').textContent='已取消：沒有放在任何任務上'; return}
+  if(d.link&&d.moved){ const q=byK[d.link.k]; d.bar.style.width='';
+    if(!q){render();return} pushUndo();
+    d.r.sm='pred'; d.r.pred=[[q.k,'FS',0]]; delete d.r.fix; setDirty(true); render();
+    DEPK=CUR_ID+'|'+d.r.k; applyDep(); refreshPop();
+    document.getElementById('msg').textContent=`已把「${q.name}」設為「${d.r.name}」的前案（緊接著做、延遲 0 工天）。要改關係或延遲請雙擊任務；按 ↶ 可復原`; return}
   if(!d.moved){if(d.group)openPopMulti(e.clientX,e.clientY); else {const bk=d.bar.dataset.bk; if(bk){if(DEPK!==bk){DEPK=bk;applyDep()}} else openPop(d.r,e.clientX,e.clientY)} return}   // 單擊＝看前後案；雙擊＝編輯（見 dblclick）
   const days=Math.round((e.clientX-d.x0)/d.pxPerDay); if(!days){render();return}
   pushUndo(); let warn='';
