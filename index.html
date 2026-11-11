@@ -501,7 +501,7 @@ table.sbt{border-collapse:separate;border-spacing:0;font-size:12.5px;font-varian
 <main>
 <script>(()=>{const b=document.querySelector('.bar');if(!b)return;const f=()=>document.documentElement.style.setProperty('--barh',b.getBoundingClientRect().bottom+'px');f();addEventListener('resize',f);try{new ResizeObserver(f).observe(b)}catch{}})()</script>
 <section id="cases"><div class="pg dsh">
-  <div class="dh"><h2>專案總覽</h2><div class="dbtn"><button class="act primary" id="btnImpBk" type="button" title="匯入從專案排程匯出的備份 JSON（所有案件＋公司 Excel 範本），同編號的案件會被覆蓋">⬆ 匯入備份（全部案件）…</button><input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain" hidden><button class="act" id="btnNew" type="button">＋ 新增案件</button><button class="act" id="btnImp" type="button" title="讀入鼎新 PLM 匯出的 XML，建立成新案件">＋ 匯入鼎新 PLM（XML）→ 新案件…</button><button class="act" id="btnReload" type="button">↻ 重新整理清單</button><input type="file" id="impFile" accept=".xml,application/xml,text/xml" hidden><button class="act" id="btnImpX" type="button" title="讀入公司制式進度管制表 .xlsx，每個分頁建立成一個案件">＋ 匯入公司 Excel（多分頁）→ 新案件…</button><input type="file" id="impXlsx" accept=".xlsx" hidden></div></div>
+  <div class="dh"><h2>專案總覽</h2><div class="dbtn"><button class="act primary" id="btnImpBk" type="button" title="匯入從專案排程匯出的備份 JSON（所有案件＋公司 Excel 範本），同編號的案件會被覆蓋">⬆ 匯入備份（全部案件）…</button><input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain" hidden><button class="act" id="btnExpBk" type="button" title="把所有案件（含組織圖）與公司 Excel 範本存成一個 JSON 備份檔">⬇ 匯出備份（全部案件）</button><button class="act" id="btnNew" type="button">＋ 新增案件</button><button class="act" id="btnImp" type="button" title="讀入鼎新 PLM 匯出的 XML，建立成新案件">＋ 匯入鼎新 PLM（XML）→ 新案件…</button><button class="act" id="btnReload" type="button">↻ 重新整理清單</button><input type="file" id="impFile" accept=".xml,application/xml,text/xml" hidden><button class="act" id="btnImpX" type="button" title="讀入公司制式進度管制表 .xlsx，每個分頁建立成一個案件">＋ 匯入公司 Excel（多分頁）→ 新案件…</button><input type="file" id="impXlsx" accept=".xlsx" hidden></div></div>
   <div class="dcard"><div class="dct">所有案件</div>
   <table class="lst" id="caseTbl"></table></div>
 </div></section>
@@ -2976,15 +2976,16 @@ async function saveOrg(){
 const _renderDl0=renderDl;
 renderDl=function(){ _renderDl0();
   document.getElementById('dlBody').insertAdjacentHTML('beforeend',`<div class="dlc"><h3>備份（所有案件＋公司 Excel 範本）</h3><p>備份檔含公司資料，請存在自己的電腦，不要上傳到 GitHub 或分享出去。要還原請到「① 案件」按「匯入備份」。</p><button class="act" data-bk="out" type="button">⬇ 匯出備份 JSON</button></div>`)};
-document.getElementById('dlBody').addEventListener('click',async e=>{
-  const b=e.target.closest('[data-bk]'); if(!b)return; const st=document.getElementById('msg');
+async function doBackupOut(){ const st=document.getElementById('msg');
   try{ st.textContent='整理備份…'; const list=await api('/entries'); const cases=[];
     for(const x of list){const j=await api('/entries/'+x.id); cases.push({id:String(x.id),title:j.title,body:j.body,n:x.n||0})}
     let tpl=null; const tr=await pmFetch('/api/tpl'); if(tr.ok)tpl=await tr.json();
     await download(new Blob([JSON.stringify({kind:'pm-schedule-backup',v:1,at:new Date().toISOString(),cases,tpl})],{type:'application/json'}),`專案排程備份_${fd(new Date())}.json`);
     st.textContent=`已匯出備份（${cases.length} 個案件${tpl?'＋Excel 範本':''}）`;
   }catch(err){st.textContent='匯出備份失敗：'+err.message}
-});
+}
+document.getElementById('dlBody').addEventListener('click',e=>{if(e.target.closest('[data-bk]'))doBackupOut()});
+document.getElementById('btnExpBk').onclick=doBackupOut;
 document.getElementById('btnImpBk').onclick=()=>document.getElementById('bkFile').click();
 document.getElementById('bkFile').addEventListener('change',async e=>{
   if(!e.target.files[0])return; const st=document.getElementById('msg'); const f=e.target.files[0]; e.target.value='';
