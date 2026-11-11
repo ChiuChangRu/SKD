@@ -1550,6 +1550,28 @@ async function doXlsx(){
     const first=5; let rn=first; const out=[]; const merges=['A1:W2','A3:M3']; const rowNum={};
     rows.forEach(r=>rowNum[r.k]=0);
     const phOrder=D.filter(r=>r.t===PH).map(p=>p.k);
+    {let n=first; for(const ph of phOrder)for(const r of (byPh[ph]||[]))rowNum[r.k]=n++}   // 先排好每個任務的列號，公式才能參照後面的列
+    // ===== 日期公式：邏輯同網頁（工作天、前置任務 FS／SS＋延遲、指定日期、「不早於」、摘要＝子任務最小／最大）=====
+    const HOLP=calWk(META)?'':',Hol';                                   // 「六日休（週一～五）」案件不帶國定假日表
+    const wdF=(x,n)=>`WORKDAY(${x},${n}${HOLP})`;
+    const dtF=d=>{d=typeof d==='string'?pd(d):d; return `DATE(${d.getUTCFullYear()},${d.getUTCMonth()+1},${d.getUTCDate()})`};
+    const nxF=d=>wdF(`${dtF(d)}-1`,1);                                  // nextWd：該日若非工作日則順延到下一個工作日
+    const refS=p=>p.sm==='xls'||!rowNum[p.k]?dtF(p.s):`H${rowNum[p.k]}`, refF=p=>p.sm==='xls'||!rowNum[p.k]?dtF(p.f):`I${rowNum[p.k]}`;
+    const rangeF=(col,kids)=>{const ns=kids.map(x=>rowNum[x.k]).filter(Boolean).sort((a,b)=>a-b); const o=[]; let i=0;
+      while(i<ns.length){let j=i; while(j+1<ns.length&&ns[j+1]===ns[j]+1)j++; o.push(j>i?`${col}${ns[i]}:${col}${ns[j]}`:`${col}${ns[i]}`); i=j+1} return o.join(',')};
+    const startStr=document.getElementById('start').value;
+    function xlF(r,rn){
+      if(r.sm==='xls'||!r.s||!r.f)return null;
+      if(r.t==='sum'){const kids=rows.filter(x=>x.par===r.k&&x.s&&rowNum[x.k]); if(!kids.length)return null;
+        return {H:`MIN(${rangeF('H',kids)})`,I:`MAX(${rangeF('I',kids)})`}}
+      let es;
+      if(r.sm==='fix')es=nxF(r.fix||nextWd(pd(startStr)));
+      else{const parts=[];
+        for(const [k,t,l] of (r.pred||[])){const p=byK[k]; if(!p||p.t===PH||!p.s)continue;
+          const base=t==='SS'?refS(p):wdF(refF(p),1); parts.push(l?wdF(base,l):base)}
+        if(r.snet)parts.push(nxF(r.snet));
+        es=!parts.length?nxF(startStr):(parts.length>1?`MAX(${parts.join(',')})`:parts[0])}
+      return {H:es,I:wdF(`H${rn}`,Math.max(r.dur||1,1)-1)}}
     for(const ph of phOrder){
       const list=byPh[ph]||[]; if(!list.length)continue; const startRow=rn;
       list.forEach((r,i)=>{
@@ -1564,7 +1586,8 @@ async function doXlsx(){
         const no=r.no||''; if(/^\d+$/.test(no))num('B',no); else str('B',no);
         str('C',r.name); str('D',r.rd); str('E',r.co);
         if(r.sm==='xls'){date('F',r.F); date('G',r.G); date('H',r.H); date('I',r.I); num('J',r.J)} else {
-        const noBase=!r.F&&!r.G; date('F',noBase?r.s:r.F); date('G',noBase?r.f:r.G); date('H',r.s); date('I',r.f);
+        const noBase=!r.F&&!r.G; date('F',noBase?r.s:r.F); date('G',noBase?r.f:r.G);
+        {const fm=xlF(r,rn); if(fm){cell('H',`<f>${xmlEsc(fm.H)}</f><v>${r.s?serial(r.s):''}</v>`); cell('I',`<f>${xmlEsc(fm.I)}</f><v>${r.f?serial(r.f):''}</v>`)} else {date('H',r.s); date('I',r.f)}}
         cell('J',`<f>I${rn}-H${rn}+1</f><v>${r.s&&r.f?cdBetween(r.s,r.f):''}</v>`);}
         date('K',r.K); date('L',r.L); str('M',r.M);
         for(const col of Object.keys(st.cells)) if(!'ABCDEFGHIJKLM'.includes(col)) cell(col);
@@ -1604,7 +1627,9 @@ async function doXlsx(){
     zip.file(P,sheet);
     // 工作表名稱
     const name=sheetSafe(META.name);
-    for(const pth of ['xl/workbook.xml','docProps/app.xml']){let x=await zip.file(pth).async('string');x=x.replace(/範本/g,xmlEsc(name)).replace(/\$A\$1:\$W\$\d+/,`$A$1:$W$${67+shift}`);zip.file(pth,x)}
+    for(const pth of ['xl/workbook.xml','docProps/app.xml']){let x=await zip.file(pth).async('string');x=x.replace(/範本/g,xmlEsc(name)).replace(/\$A\$1:\$W\$\d+/,`$A$1:$W$${67+shift}`);
+      if(pth==='xl/workbook.xml'&&!calWk(META)){const hv=[...HOLIDAYS].sort().map(h=>serial(pd(h))).join(','); x=x.replace('</definedNames>',`<definedName name="Hol">{${hv}}</definedName></definedNames>`)}
+      zip.file(pth,x)}
     // 圖表：範圍改成新列數、開始欄改讀 H（修改後預計開始）、快取值同步、座標軸範圍
     const CP='xl/charts/chart1.xml'; let ch=await zip.file(CP).async('string');
     const SC=rows.some(r=>r.sm==='xls'&&!r.H)?'F':'H';   // Excel 原樣（鎖定）的案件沒有「修改後預計開始」→圖表改讀「預計開始日」F 欄
