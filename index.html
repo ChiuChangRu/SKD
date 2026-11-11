@@ -397,13 +397,15 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .g-bar[data-xk]{cursor:pointer}
 /* 依賴關係：點任務 → 前案（藍）、後案（橘）箭頭 */
 #mg .dpsvg{position:absolute;left:0;top:0;pointer-events:none;z-index:2;overflow:visible}
-.g-row.dpdim .g-bar,.g-row.dpdim .g-name{opacity:.25}
 .g-bar.dp-me{outline:3px solid var(--ink);outline-offset:1px;position:relative;z-index:3}
 .g-bar.dp-pre{outline:2px solid #1f6feb;outline-offset:1px}
 .g-bar.dp-suc{outline:2px solid #e8590c;outline-offset:1px}
 .g-row.dp-pre .g-name::after{content:"　◀ 前案";color:#1f6feb;font-weight:700}
 .g-row.dp-suc .g-name::after{content:"　後案 ▶";color:#e8590c;font-weight:700}
 .g-row.dp-me .g-name::after{content:"　● 選取";font-weight:700}
+.g-bar.dp-nopre{outline:3px dashed #d92d20!important;outline-offset:2px;box-shadow:0 0 0 4px rgba(217,45,32,.18)}
+.g-row.dp-nopre .g-name::after{content:"　⚠ 無前案";color:#d92d20;font-weight:700}
+#depbar .nopre{color:#ff9b9b;font-weight:700}
 #depbar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:50;background:var(--ink);color:var(--bg);padding:6px 12px;border-radius:8px;font-size:13px;max-width:92vw;display:flex;gap:12px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)}
 #depbar .pre{color:#8ab8ff;font-weight:700}#depbar .suc{color:#ffb27a;font-weight:700}
 #depbar button{background:none;border:1px solid currentColor;color:inherit;border-radius:4px;cursor:pointer;font:inherit;padding:1px 8px}
@@ -846,7 +848,7 @@ function caseRows(id,json,color){
   let tasks;
   if(isCur)tasks=D; else {tasks=withCal(meta,()=>migrate((json.tasks||[]).map(r=>({...r,pred:(r.pred||[]).map(p=>[...p])})))); anchorStart(tasks,meta.default_start); withCal(meta,()=>compute(tasks,meta.default_start||fd(new Date())));}
   const wm=wbsMap(tasks);
-  const rows=tasks.map((r,ord)=>({r,ord})).filter(({r})=>r.s&&r.f).map(({r,ord})=>({ord,k:r.k,ed:isCur&&r.t!==PH&&r.t!=='sum'&&r.sm!=='xls',c:color,tag,wbs:wm[r.k][0],lvl:wm[r.k][1],name:r.name,rd:r.rd||'',s:r.s,f:r.f,sum:r.t===PH||r.t==='sum',back:r.back,ms:!!r.ms,sm:r.sm,d0:r.dur0,wt:r.wt,wtn:r.wtn,hw:r.hw,wth:r.wth,wtw:r.wtw,cx:isCur&&r.sm==='xls',co:r.co||'',nt:r.note||'',pk:(r.pred||[]).map(p=>p[0]),pw:(r.pred||[]).map(([k,t,l])=>[wm[k]?wm[k][0]:k,t||'FS',l||0])}));
+  const rows=tasks.map((r,ord)=>({r,ord})).filter(({r})=>r.s&&r.f).map(({r,ord})=>({ord,k:r.k,ed:isCur&&r.t!==PH&&r.t!=='sum'&&r.sm!=='xls',c:color,tag,wbs:wm[r.k][0],lvl:wm[r.k][1],name:r.name,rd:r.rd||'',s:r.s,f:r.f,sum:r.t===PH||r.t==='sum',back:r.back,ms:!!r.ms,sm:r.sm,d0:r.dur0,wt:r.wt,wtn:r.wtn,hw:r.hw,wth:r.wth,wtw:r.wtw,cx:isCur&&r.sm==='xls',snet:r.snet||'',co:r.co||'',nt:r.note||'',pk:(r.pred||[]).map(p=>p[0]),pw:(r.pred||[]).map(([k,t,l])=>[wm[k]?wm[k][0]:k,t||'FS',l||0])}));
   return {tag,name:meta.name||'',color,rows,marks:(meta.marks||[]).map(m=>({...m,cur:isCur,tag}))};
 }
 let MSEQ=0;
@@ -999,24 +1001,27 @@ function depRel(key){
   rs.forEach(x=>{ if(x.sm==='fix')return; (x.pk||[]).forEach((pk,i)=>{ if(pk===tk){const w=(x.pw||[])[i]||[]; suc.push({r:x,t:w[1]||'FS',l:w[2]||0})} }) });
   return {me,pre,suc,cid};
 }
+const depNoPre=r=>r.sm!=='fix'&&r.sm!=='xls'&&!(r.pk||[]).length;   // 指定日期／Excel 原樣鎖定本來就不吃前置任務，不算漏設
 function depBar(rel){
   let b=document.getElementById('depbar'); if(!rel){if(b)b.remove();return}
   if(!b){b=document.createElement('div'); b.id='depbar'; document.body.appendChild(b); b.onclick=e=>{if(e.target.dataset.a==='depx'){DEPK=null;applyDep()}}}
   const nm=x=>esc(x.r.wbs+' '+x.r.name), lst=a=>a.length?a.slice(0,4).map(nm).join('、')+(a.length>4?` 等 ${a.length} 個`:''):'（無）';
-  b.innerHTML=`<span><b>${esc(rel.me.wbs+' '+rel.me.name)}</b></span><span><span class="pre">◀ 前案</span> ${lst(rel.pre)}</span><span><span class="suc">後案 ▶</span> ${lst(rel.suc)}</span><button type="button" data-a="depx" title="快捷鍵 Esc">結束 ✕</button>`;
+  const pre=rel.pre.length?`<span class="pre">◀ 前案</span> ${lst(rel.pre)}`
+    :depNoPre(rel.me)?`<span class="nopre">⚠ 無前案</span> 日期不會跟著前面的任務連動${rel.me.snet?'（只設了「不早於」日期）':''}，請確認是不是漏設前置任務`
+    :`<span class="pre">◀ 前案</span> （無，${rel.me.sm==='xls'?'Excel 原樣鎖定':'指定日期'}）`;
+  b.innerHTML=`<span><b>${esc(rel.me.wbs+' '+rel.me.name)}</b></span><span>${pre}</span><span><span class="suc">後案 ▶</span> ${lst(rel.suc)}</span><button type="button" data-a="depx" title="快捷鍵 Esc">結束 ✕</button>`;
 }
 function applyDep(){
   const g=document.getElementById('mg'); if(!g)return;
   g.querySelectorAll('.dpsvg').forEach(e=>e.remove());
-  g.querySelectorAll('.dp-me,.dp-pre,.dp-suc').forEach(e=>e.classList.remove('dp-me','dp-pre','dp-suc'));
-  g.querySelectorAll('.g-row.dpdim,.g-row.dpk').forEach(e=>e.classList.remove('dpdim','dpk'));
+  g.querySelectorAll('.dp-me,.dp-pre,.dp-suc,.dp-nopre').forEach(e=>e.classList.remove('dp-me','dp-pre','dp-suc','dp-nopre'));
+  g.querySelectorAll('.g-row.dpk').forEach(e=>e.classList.remove('dpk'));
   if(!DEPK||MLAYOUT==='cmp'){depBar(null);return}
   const rel=depRel(DEPK); if(!rel){DEPK=null;depBar(null);return}
   const bars={}; g.querySelectorAll('.g-bar[data-bk]').forEach(b=>{bars[b.dataset.bk]=b});
   const bk=r=>bars[rel.cid+'|'+r.k], meB=bk(rel.me); if(!meB){DEPK=null;depBar(null);return}
   const mark=(b,c)=>{if(!b)return; b.classList.add(c); const row=b.closest('.g-row'); if(row){row.classList.add('dpk',c)}};
-  mark(meB,'dp-me'); rel.pre.forEach(x=>mark(bk(x.r),'dp-pre')); rel.suc.forEach(x=>mark(bk(x.r),'dp-suc'));
-  g.querySelectorAll('.g-row').forEach(row=>{if(!row.classList.contains('dpk')&&!row.classList.contains('lane'))row.classList.add('dpdim')});
+  mark(meB,'dp-me'); if(depNoPre(rel.me))mark(meB,'dp-nopre'); rel.pre.forEach(x=>mark(bk(x.r),'dp-pre')); rel.suc.forEach(x=>mark(bk(x.r),'dp-suc'));
   const NS='http://www.w3.org/2000/svg', svg=document.createElementNS(NS,'svg'); svg.setAttribute('class','dpsvg'); svg.setAttribute('width',g.scrollWidth); svg.setAttribute('height',g.scrollHeight);
   svg.innerHTML='<defs><marker id="dpa1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f6feb"/></marker><marker id="dpa2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e8590c"/></marker></defs>';
   g.appendChild(svg); const o=svg.getBoundingClientRect();
