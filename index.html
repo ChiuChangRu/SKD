@@ -396,7 +396,6 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .g-bar .bwho{position:absolute;right:4px;top:4px;font-size:12px;line-height:18px;font-weight:700;color:#fff;background:rgba(18,28,44,.78);border-radius:3px;padding:0 6px;white-space:nowrap;pointer-events:none}
 .g-bar[data-xk]{cursor:pointer}
 /* 依賴關係：點任務 → 前案（藍）、後案（橘）箭頭 */
-#mg .dpsvg{position:absolute;left:0;top:0;pointer-events:none;z-index:0;overflow:visible}
 #depbar a{color:inherit;text-decoration:underline dotted;text-underline-offset:2px}
 #depbar a:hover{text-decoration:underline}
 .g-bar.dp-me{outline:3px solid var(--ink);outline-offset:1px;position:relative;z-index:3}
@@ -405,8 +404,11 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .g-row.dp-pre .g-name::after{content:"　◀ 前案";color:#1f6feb;font-weight:700}
 .g-row.dp-suc .g-name::after{content:"　後案 ▶";color:#e8590c;font-weight:700}
 .g-row.dp-me .g-name::after{content:"　● 選取";font-weight:700}
-.g-bar.dp-nopre{outline:3px dashed #d92d20!important;outline-offset:2px;box-shadow:0 0 0 4px rgba(217,45,32,.18)}
-.g-row.dp-nopre .g-name::after{content:"　⚠ 無前案";color:#d92d20;font-weight:700}
+@keyframes pmNoPre{0%,100%{background:#d92d20}50%{background:#ff9d96}}
+.g-bar.nopre{animation:pmNoPre 1.2s ease-in-out infinite}
+.g-bar.nopre .bl.bin,.g-bar.nopre .bwho,.g-bar.nopre .bcode{color:#fff}
+@media (prefers-reduced-motion:reduce){.g-bar.nopre{animation:none;background:#d92d20}}
+.g-row.dp-me.dp-nopre .g-name::after{content:"　⚠ 無前案";color:#d92d20;font-weight:700}
 #depbar .nopre{color:#ff9b9b;font-weight:700}
 #depbar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:50;background:var(--ink);color:var(--bg);padding:6px 12px;border-radius:8px;font-size:13px;max-width:92vw;display:flex;gap:12px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)}
 #depbar .pre{color:#8ab8ff;font-weight:700}#depbar .suc{color:#ffb27a;font-weight:700}
@@ -972,9 +974,10 @@ function drawGantt(sel,today,g){
   for(const r of rows){
     if(r.lane){h+=`<div class="g-row lane"><div class="g-name"><span class="chip ${r.c}">${esc(r.tag)}</span>${esc(r.name)}</div><div class="g-track">${tl}</div></div>`;continue}
     const ind=MLAYOUT==='lane'?8+(r.lvl-1)*14:8;
-    const nd=Math.round((addD(r.f,1)-r.s)/864e5), tip=`${r.tag} ${r.wbs} ${r.name}：${fd(r.s)}${r.back?'*':''} → ${fd(r.f)}｜${nd} 天（曆天含頭尾）／${wdBetween(r.s,r.f)} 工天`;
+    const nd=Math.round((addD(r.f,1)-r.s)/864e5); let tip=`${r.tag} ${r.wbs} ${r.name}：${fd(r.s)}${r.back?'*':''} → ${fd(r.f)}｜${nd} 天（曆天含頭尾）／${wdBetween(r.s,r.f)} 工天`;
+    if(!r.sum&&depNoPre(r))tip+='\n⚠ 沒有前置任務：日期不會跟著前面的任務連動，請確認是不是漏設';
     const hs=hrStat(r);
-    h+=`<div class="g-row ${r.sum?'sum':''}"><div class="g-name ${r.c}" style="padding-left:${ind}px" title="${esc(r.tag+'　'+tip+(hs?hs.t:''))}">${r.wbs} ${esc(r.name)}${r.back?' *':''}</div><div class="g-track">${tl}<div class="g-bar ${r.c} ${r.sum?'sumb':''} ${r.ed?'ed':''} ${r.ms?'hasms':''}" ${r.ed?`data-k="${esc(r.k)}"`:''} ${r.cx?`data-xk="${esc(r.k)}"`:''} ${r.sum?'':`data-bk="${esc(r.cid+'|'+r.k)}" data-hp="${esc(Object.keys(hrW(r.rd,r.hw).m).join(','))}" data-bs="${fd(r.s)}" data-bf="${fd(r.f)}"`} style="left:${x(r.s)};width:calc(${x(addD(r.f,1))} - ${x(r.s)})" title="${esc(tip+(hs?hs.t:''))}${r.ed?'\n拖動＝改開始日；拖右緣＝改歷時；點一下＝輸入':''}">${ZOOMV>0?(()=>{const lb=`${r.wbs} ${r.name}`, cd=MULTIC?String(r.tag||''):'', lbh=(cd?`<span class="bcode">${esc(cd)}</span>`:'')+esc(lb), lbn=lb.length+(cd?cd.length+2:0), wpx=(addD(r.f,1)-r.s)/864e5*pd, wh=(r.sum||String(r.cid)!==String(CUR_ID))?'':whoShort(r), whpx=wh?wh.length*13+22:0, nIn=!!wh&&wpx>=whpx+8, inn=!r.sum&&wpx>lbn*11+12+(nIn?whpx:0);
+    h+=`<div class="g-row ${r.sum?'sum':''}"><div class="g-name ${r.c}" style="padding-left:${ind}px" title="${esc(r.tag+'　'+tip+(hs?hs.t:''))}">${r.wbs} ${esc(r.name)}${r.back?' *':''}</div><div class="g-track">${tl}<div class="g-bar ${r.c} ${r.sum?'sumb':''} ${r.ed?'ed':''} ${r.ms?'hasms':''} ${!r.sum&&depNoPre(r)?'nopre':''}" ${r.ed?`data-k="${esc(r.k)}"`:''} ${r.cx?`data-xk="${esc(r.k)}"`:''} ${r.sum?'':`data-bk="${esc(r.cid+'|'+r.k)}" data-hp="${esc(Object.keys(hrW(r.rd,r.hw).m).join(','))}" data-bs="${fd(r.s)}" data-bf="${fd(r.f)}"`} style="left:${x(r.s)};width:calc(${x(addD(r.f,1))} - ${x(r.s)})" title="${esc(tip+(hs?hs.t:''))}${r.ed?'\n拖動＝改開始日；拖右緣＝改歷時；點一下＝輸入':''}">${ZOOMV>0?(()=>{const lb=`${r.wbs} ${r.name}`, cd=MULTIC?String(r.tag||''):'', lbh=(cd?`<span class="bcode">${esc(cd)}</span>`:'')+esc(lb), lbn=lb.length+(cd?cd.length+2:0), wpx=(addD(r.f,1)-r.s)/864e5*pd, wh=(r.sum||String(r.cid)!==String(CUR_ID))?'':whoShort(r), whpx=wh?wh.length*13+22:0, nIn=!!wh&&wpx>=whpx+8, inn=!r.sum&&wpx>lbn*11+12+(nIn?whpx:0);
       if(r.sum)return `<span class="bl bout">${lbh}　<span class="bn2">${nd} 天</span></span>`;
       return `<span class="bd bs">${sd(r.s)}</span>`+(inn?`${nIn?`<span class="bwho">${esc(wh)}</span>`:''}<span class="bl bin" ${nIn?`style="max-width:calc(100% - ${whpx}px)"`:''}>${lbh}${wpx>(lbn+7)*11+12?` <span style="opacity:.85">· ${nd} 天</span>`:''}</span><span class="bd be">${sd(r.f)} · ${nd} 天</span>`:`${nIn?`<span class="bwho">${esc(wh)}</span>`:''}<span class="bl bout"><span class="bdt">${sd(r.f)} · ${nd} 天</span>${lbh}</span>`)})():`<span class="bn ${((end-addD(r.f,1))/864e5*pd<56)?'l':'r'}">${nd} 天</span>`}${r.ed?'<span class="gh"></span>':''}</div>${r.ms?`<svg class="g-ms" style="left:${x(addD(r.f,1))}" width="16" height="20" viewBox="0 0 16 20" aria-label="里程碑"><line x1="1" y1="0.5" x2="1" y2="20" stroke="currentColor" stroke-width="2"/><path d="M2 1 L15.5 5.5 L2 10 Z" fill="currentColor"/></svg>`:''}</div></div>`;
   }
@@ -1003,13 +1006,13 @@ function depRel(key){
   rs.forEach(x=>{ if(x.sm==='fix')return; (x.pk||[]).forEach((pk,i)=>{ if(pk===tk){const w=(x.pw||[])[i]||[]; suc.push({r:x,t:w[1]||'FS',l:w[2]||0})} }) });
   return {me,pre,suc,cid};
 }
-const depNoPre=r=>r.sm!=='fix'&&r.sm!=='xls'&&!(r.pk||[]).length;   // 指定日期／Excel 原樣鎖定本來就不吃前置任務，不算漏設
+function depNoPre(r){return r.sm!=='fix'&&r.sm!=='xls'&&!(r.pk||[]).length}   // 指定日期／Excel 原樣鎖定本來就不吃前置任務，不算漏設
 function depBar(rel){
   let b=document.getElementById('depbar'); if(!rel){if(b)b.remove();return}
   if(!b){b=document.createElement('div'); b.id='depbar'; document.body.appendChild(b); b.onclick=e=>{ if(e.target.dataset.a==='depx'){DEPK=null;applyDep();return}
     const j=e.target.closest('[data-j]'); if(j){e.preventDefault(); const t=[...document.querySelectorAll('#mg .g-bar[data-bk]')].find(x=>x.dataset.bk===j.dataset.j);
       if(t){t.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); DEPK=j.dataset.j; setTimeout(applyDep,350)} } }}
-  const nm=x=>`<a href="#" data-j="${esc(rel.cid+'|'+x.r.k)}" title="跳到這個任務，並接著看它的前後案">${esc(x.r.wbs+' '+x.r.name)}</a>`, lst=a=>a.length?a.slice(0,4).map(nm).join('、')+(a.length>4?` 等 ${a.length} 個`:''):'（無）';
+  const rl=x=>(x.t==='SS'?'同開始':'')+(x.l?(x.l>0?'＋':'')+x.l+'工天':''), nm=x=>`<a href="#" data-j="${esc(rel.cid+'|'+x.r.k)}" title="跳到這個任務，並接著看它的前後案">${esc(x.r.wbs+' '+x.r.name)}</a>${rl(x)?`<small>（${esc(rl(x))}）</small>`:''}`, lst=a=>a.length?a.slice(0,4).map(nm).join('、')+(a.length>4?` 等 ${a.length} 個`:''):'（無）';
   const pre=rel.pre.length?`<span class="pre">◀ 前案</span> ${lst(rel.pre)}`
     :depNoPre(rel.me)?`<span class="nopre">⚠ 無前案</span> 日期不會跟著前面的任務連動${rel.me.snet?'（只設了「不早於」日期）':''}，請確認是不是漏設前置任務`
     :`<span class="pre">◀ 前案</span> （無，${rel.me.sm==='xls'?'Excel 原樣鎖定':'指定日期'}）`;
@@ -1017,7 +1020,6 @@ function depBar(rel){
 }
 function applyDep(){
   const g=document.getElementById('mg'); if(!g)return;
-  g.querySelectorAll('.dpsvg').forEach(e=>e.remove());
   g.querySelectorAll('.dp-me,.dp-pre,.dp-suc,.dp-nopre').forEach(e=>e.classList.remove('dp-me','dp-pre','dp-suc','dp-nopre'));
   g.querySelectorAll('.g-row.dpk').forEach(e=>e.classList.remove('dpk'));
   if(!DEPK||MLAYOUT==='cmp'){depBar(null);return}
@@ -1026,21 +1028,6 @@ function applyDep(){
   const bk=r=>bars[rel.cid+'|'+r.k], meB=bk(rel.me); if(!meB){DEPK=null;depBar(null);return}
   const mark=(b,c)=>{if(!b)return; b.classList.add(c); const row=b.closest('.g-row'); if(row){row.classList.add('dpk',c)}};
   mark(meB,'dp-me'); if(depNoPre(rel.me))mark(meB,'dp-nopre'); rel.pre.forEach(x=>mark(bk(x.r),'dp-pre')); rel.suc.forEach(x=>mark(bk(x.r),'dp-suc'));
-  const NS='http://www.w3.org/2000/svg', svg=document.createElementNS(NS,'svg'); svg.setAttribute('class','dpsvg'); svg.setAttribute('width',g.scrollWidth); svg.setAttribute('height',g.scrollHeight);
-  svg.innerHTML='<defs><marker id="dpa1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f6feb"/></marker><marker id="dpa2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e8590c"/></marker></defs>';
-  const gl=g.querySelector('.g-grid'); g.insertBefore(svg,gl?gl.nextSibling:g.firstChild);   // 插在格線之後、各列之前＝畫在長條下方，不擋住文字
-  const o=svg.getBoundingClientRect();
-  const R=el=>{const b=el.getBoundingClientRect(); return {l:b.left-o.left,r:b.right-o.left,y:b.top-o.top+b.height/2}};
-  const edge=(fromB,toB,type,lag,col,mk)=>{ if(!fromB||!toB)return; const a=R(fromB), b=R(toB);
-    const x1=type==='SS'?a.l:a.r, y1=a.y, x2=b.l, y2=b.y, sx=type==='SS'?x1-9:x1+9, ex=x2-9, dir=y2>=y1?1:-1;
-    const ym=y1+dir*Math.max(10,Math.min(Math.abs(y2-y1)/2,14));
-    const vx=Math.round((sx+ex)/2);   // 直線段走兩端的中間，比較不會壓在別的長條上
-    const d=sx<=ex?`M${x1},${y1} H${vx} V${y2} H${x2}`:`M${x1},${y1} H${sx} V${ym} H${ex} V${y2} H${x2}`;
-    const far=Math.abs(y2-y1)>44;     // 隔超過約兩列：改細虛線，降低擋住畫面的感覺
-    const p=document.createElementNS(NS,'path'); p.setAttribute('d',d); p.setAttribute('fill','none'); p.setAttribute('stroke',col); p.setAttribute('stroke-width',far?'1.5':'2'); if(far){p.setAttribute('stroke-dasharray','5 4'); p.setAttribute('opacity','.8')} p.setAttribute('marker-end',`url(#${mk})`); svg.appendChild(p);
-    const lb=(type==='SS'?'SS':'')+(lag?(lag>0?'+':'')+lag+'d':''); if(lb){const t=document.createElementNS(NS,'text'); t.setAttribute('x',Math.min(sx,ex)+3); t.setAttribute('y',(sx<=ex?(y1+y2)/2:ym)-3); t.setAttribute('font-size','11'); t.setAttribute('font-weight','700'); t.setAttribute('fill',col); t.setAttribute('paint-order','stroke'); t.setAttribute('stroke','var(--bg)'); t.setAttribute('stroke-width','3'); t.textContent=lb; svg.appendChild(t)} };
-  rel.pre.forEach(x=>edge(bk(x.r),meB,x.t,x.l,'#1f6feb','dpa1'));
-  rel.suc.forEach(x=>edge(meB,bk(x.r),x.t,x.l,'#e8590c','dpa2'));
   depBar(rel);
 }
 (()=>{ const g=document.getElementById('mg');
@@ -1056,7 +1043,6 @@ function applyDep(){
   g.addEventListener('dblclick',e=>{   // 雙擊條塊＝開編輯視窗
     if(e.ctrlKey||e.metaKey||e.shiftKey||e.target.closest('.gh'))return; const b=e.target.closest('.g-bar[data-bk]'); if(!b||b.classList.contains('sumb'))return;
     const k=b.dataset.k||b.dataset.xk; if(!k)return; if(MSEL.size>1&&MSEL.has(k)){openPopMulti(e.clientX,e.clientY);return} if(MSEL.size)clearSel(); const r=byK[k]; if(r)openPop(r,e.clientX,e.clientY)});
-  let rt=0; window.addEventListener('resize',()=>{clearTimeout(rt); rt=setTimeout(()=>{if(DEPK)applyDep()},150)});
 })();
 document.getElementById('mLegend').addEventListener('click',async e=>{
   if(e.target.id==='hrtog'){HRSHOW=!HRSHOW; try{localStorage.setItem('pm_hrshow',HRSHOW?'1':'0')}catch{} render(); return}
