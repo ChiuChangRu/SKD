@@ -396,7 +396,9 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .g-bar .bwho{position:absolute;right:4px;top:4px;font-size:12px;line-height:18px;font-weight:700;color:#fff;background:rgba(18,28,44,.78);border-radius:3px;padding:0 6px;white-space:nowrap;pointer-events:none}
 .g-bar[data-xk]{cursor:pointer}
 /* 依賴關係：點任務 → 前案（藍）、後案（橘）箭頭 */
-#mg .dpsvg{position:absolute;left:0;top:0;pointer-events:none;z-index:2;overflow:visible}
+#mg .dpsvg{position:absolute;left:0;top:0;pointer-events:none;z-index:0;overflow:visible}
+#depbar a{color:inherit;text-decoration:underline dotted;text-underline-offset:2px}
+#depbar a:hover{text-decoration:underline}
 .g-bar.dp-me{outline:3px solid var(--ink);outline-offset:1px;position:relative;z-index:3}
 .g-bar.dp-pre{outline:2px solid #1f6feb;outline-offset:1px}
 .g-bar.dp-suc{outline:2px solid #e8590c;outline-offset:1px}
@@ -1004,8 +1006,10 @@ function depRel(key){
 const depNoPre=r=>r.sm!=='fix'&&r.sm!=='xls'&&!(r.pk||[]).length;   // 指定日期／Excel 原樣鎖定本來就不吃前置任務，不算漏設
 function depBar(rel){
   let b=document.getElementById('depbar'); if(!rel){if(b)b.remove();return}
-  if(!b){b=document.createElement('div'); b.id='depbar'; document.body.appendChild(b); b.onclick=e=>{if(e.target.dataset.a==='depx'){DEPK=null;applyDep()}}}
-  const nm=x=>esc(x.r.wbs+' '+x.r.name), lst=a=>a.length?a.slice(0,4).map(nm).join('、')+(a.length>4?` 等 ${a.length} 個`:''):'（無）';
+  if(!b){b=document.createElement('div'); b.id='depbar'; document.body.appendChild(b); b.onclick=e=>{ if(e.target.dataset.a==='depx'){DEPK=null;applyDep();return}
+    const j=e.target.closest('[data-j]'); if(j){e.preventDefault(); const t=[...document.querySelectorAll('#mg .g-bar[data-bk]')].find(x=>x.dataset.bk===j.dataset.j);
+      if(t){t.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); DEPK=j.dataset.j; setTimeout(applyDep,350)} } }}
+  const nm=x=>`<a href="#" data-j="${esc(rel.cid+'|'+x.r.k)}" title="跳到這個任務，並接著看它的前後案">${esc(x.r.wbs+' '+x.r.name)}</a>`, lst=a=>a.length?a.slice(0,4).map(nm).join('、')+(a.length>4?` 等 ${a.length} 個`:''):'（無）';
   const pre=rel.pre.length?`<span class="pre">◀ 前案</span> ${lst(rel.pre)}`
     :depNoPre(rel.me)?`<span class="nopre">⚠ 無前案</span> 日期不會跟著前面的任務連動${rel.me.snet?'（只設了「不早於」日期）':''}，請確認是不是漏設前置任務`
     :`<span class="pre">◀ 前案</span> （無，${rel.me.sm==='xls'?'Excel 原樣鎖定':'指定日期'}）`;
@@ -1024,13 +1028,16 @@ function applyDep(){
   mark(meB,'dp-me'); if(depNoPre(rel.me))mark(meB,'dp-nopre'); rel.pre.forEach(x=>mark(bk(x.r),'dp-pre')); rel.suc.forEach(x=>mark(bk(x.r),'dp-suc'));
   const NS='http://www.w3.org/2000/svg', svg=document.createElementNS(NS,'svg'); svg.setAttribute('class','dpsvg'); svg.setAttribute('width',g.scrollWidth); svg.setAttribute('height',g.scrollHeight);
   svg.innerHTML='<defs><marker id="dpa1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f6feb"/></marker><marker id="dpa2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e8590c"/></marker></defs>';
-  g.appendChild(svg); const o=svg.getBoundingClientRect();
+  const gl=g.querySelector('.g-grid'); g.insertBefore(svg,gl?gl.nextSibling:g.firstChild);   // 插在格線之後、各列之前＝畫在長條下方，不擋住文字
+  const o=svg.getBoundingClientRect();
   const R=el=>{const b=el.getBoundingClientRect(); return {l:b.left-o.left,r:b.right-o.left,y:b.top-o.top+b.height/2}};
   const edge=(fromB,toB,type,lag,col,mk)=>{ if(!fromB||!toB)return; const a=R(fromB), b=R(toB);
     const x1=type==='SS'?a.l:a.r, y1=a.y, x2=b.l, y2=b.y, sx=type==='SS'?x1-9:x1+9, ex=x2-9, dir=y2>=y1?1:-1;
     const ym=y1+dir*Math.max(10,Math.min(Math.abs(y2-y1)/2,14));
-    const d=sx<=ex?`M${x1},${y1} H${sx} V${y2} H${x2}`:`M${x1},${y1} H${sx} V${ym} H${ex} V${y2} H${x2}`;
-    const p=document.createElementNS(NS,'path'); p.setAttribute('d',d); p.setAttribute('fill','none'); p.setAttribute('stroke',col); p.setAttribute('stroke-width','2'); p.setAttribute('marker-end',`url(#${mk})`); svg.appendChild(p);
+    const vx=Math.round((sx+ex)/2);   // 直線段走兩端的中間，比較不會壓在別的長條上
+    const d=sx<=ex?`M${x1},${y1} H${vx} V${y2} H${x2}`:`M${x1},${y1} H${sx} V${ym} H${ex} V${y2} H${x2}`;
+    const far=Math.abs(y2-y1)>44;     // 隔超過約兩列：改細虛線，降低擋住畫面的感覺
+    const p=document.createElementNS(NS,'path'); p.setAttribute('d',d); p.setAttribute('fill','none'); p.setAttribute('stroke',col); p.setAttribute('stroke-width',far?'1.5':'2'); if(far){p.setAttribute('stroke-dasharray','5 4'); p.setAttribute('opacity','.8')} p.setAttribute('marker-end',`url(#${mk})`); svg.appendChild(p);
     const lb=(type==='SS'?'SS':'')+(lag?(lag>0?'+':'')+lag+'d':''); if(lb){const t=document.createElementNS(NS,'text'); t.setAttribute('x',Math.min(sx,ex)+3); t.setAttribute('y',(sx<=ex?(y1+y2)/2:ym)-3); t.setAttribute('font-size','11'); t.setAttribute('font-weight','700'); t.setAttribute('fill',col); t.setAttribute('paint-order','stroke'); t.setAttribute('stroke','var(--bg)'); t.setAttribute('stroke-width','3'); t.textContent=lb; svg.appendChild(t)} };
   rel.pre.forEach(x=>edge(bk(x.r),meB,x.t,x.l,'#1f6feb','dpa1'));
   rel.suc.forEach(x=>edge(meB,bk(x.r),x.t,x.l,'#e8590c','dpa2'));
