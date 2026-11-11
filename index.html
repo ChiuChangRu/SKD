@@ -1041,6 +1041,9 @@ function applyDep(){
     if(!b){return}
     const k=b.dataset.bk; DEPK=DEPK===k?null:k; applyDep();
   });
+  g.addEventListener('dblclick',e=>{   // 雙擊條塊＝開編輯視窗
+    if(e.ctrlKey||e.metaKey||e.shiftKey||e.target.closest('.gh'))return; const b=e.target.closest('.g-bar[data-bk]'); if(!b||b.classList.contains('sumb'))return;
+    const k=b.dataset.k||b.dataset.xk; if(!k)return; if(MSEL.size>1&&MSEL.has(k)){openPopMulti(e.clientX,e.clientY);return} if(MSEL.size)clearSel(); const r=byK[k]; if(r)openPop(r,e.clientX,e.clientY)});
   let rt=0; window.addEventListener('resize',()=>{clearTimeout(rt); rt=setTimeout(()=>{if(DEPK)applyDep()},150)});
 })();
 document.getElementById('mLegend').addEventListener('click',async e=>{
@@ -1333,7 +1336,7 @@ document.getElementById('mg').addEventListener('pointerdown',e=>{
 });
 document.getElementById('mg').addEventListener('pointerup',e=>{
   if(!DRAG)return; const d=DRAG; DRAG=null; d.bar.style.transform=''; (d.gb||[]).forEach(x=>{x.bar.style.transform=''}); const dt=document.getElementById('dragTip'); if(dt)dt.remove();
-  if(!d.moved){if(d.group)openPopMulti(e.clientX,e.clientY); else {const bk=d.bar.dataset.bk; if(bk&&DEPK!==bk){DEPK=bk;applyDep()} else openPop(d.r,e.clientX,e.clientY)} return}
+  if(!d.moved){if(d.group)openPopMulti(e.clientX,e.clientY); else {const bk=d.bar.dataset.bk; if(bk){if(DEPK!==bk){DEPK=bk;applyDep()}} else openPop(d.r,e.clientX,e.clientY)} return}   // 單擊＝看前後案；雙擊＝編輯（見 dblclick）
   const days=Math.round((e.clientX-d.x0)/d.pxPerDay); if(!days){render();return}
   pushUndo(); let warn='';
   if(d.group){
@@ -1514,7 +1517,7 @@ document.addEventListener('pointerdown',e=>{if(!e.target.closest('#ctx'))closeCt
 const markEdit=async (d,old)=>{const lb=await DLG.prompt(`註記 ${d} 的文字（例：送件、客戶審查、展覽）`,old?old.label:'');if(lb==null)return;
   pushUndo(); META.marks=(META.marks||[]).filter(m=>m!==old); META.marks.push({d,label:lb.trim()||'註記'}); META.marks.sort((a,b)=>a.d<b.d?-1:1); setDirty(true); render()};
 document.getElementById('mg').addEventListener('click',e=>{const b=e.target.closest('.g-bar[data-xk]'); if(!b||e.target.closest('.gh'))return; if(e.ctrlKey||e.metaKey||e.shiftKey)return; const k=b.dataset.xk;
-  if(MSEL.size>1&&MSEL.has(k)){openPopMulti(e.clientX,e.clientY);return} if(MSEL.size)clearSel(); const r=byK[k]; if(!r)return; const bk=b.dataset.bk; if(bk&&DEPK!==bk){DEPK=bk;applyDep();return} openPop(r,e.clientX,e.clientY)});
+  if(MSEL.size>1&&MSEL.has(k)){openPopMulti(e.clientX,e.clientY);return} if(MSEL.size)clearSel(); const r=byK[k]; if(!r)return; const bk=b.dataset.bk; if(bk){if(DEPK!==bk){DEPK=bk;applyDep()} return} openPop(r,e.clientX,e.clientY)});
 document.getElementById('mg').addEventListener('mousedown',e=>{if(e.target.closest('input,select,textarea'))return; if(e.detail>1||e.shiftKey||e.ctrlKey||e.metaKey)e.preventDefault()});
 document.getElementById('mg').addEventListener('pointerdown',e=>{
   if(e.button!==0||e.pointerType==='touch'||!GAX||e.target.closest('.g-bar,.hrdock,#selbar,.g-head,.g-name,.mk,button,input,select,a'))return;
