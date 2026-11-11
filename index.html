@@ -412,6 +412,8 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .g-bar.nopre .bl.bin,.g-bar.nopre .bwho,.g-bar.nopre .bcode{color:#fff}
 @media (prefers-reduced-motion:reduce){.g-bar.nopre{animation:none;background:#d92d20}}
 .g-row.dp-me.dp-nopre .g-name::after{content:"　⚠ 無前案";color:#d92d20;font-weight:700}
+#orphbar{margin:8px 12px;padding:8px 12px;border:2px solid #d92d20;background:#fff;color:#d92d20;font-size:13px;max-height:34vh;overflow:auto}#orphbar b{font-weight:700}#orphbar .orow{display:flex;gap:10px;align-items:center;padding:3px 0;border-top:1px dashed #f0b3ad}#orphbar .orow a{color:#d92d20;font-weight:700}#orphbar .orow small{color:#b42318;flex:1}#orphbar select{border:1px solid #d92d20;color:#d92d20;background:#fff;font:inherit;padding:2px 6px;border-radius:0}
+.g-bar.orph{outline:3px solid #d92d20;outline-offset:2px;z-index:3}.g-name.orph{color:#d92d20;font-weight:700}.in.orph{border:2px solid #d92d20!important;background:#fff0ef}
 #depbar .nopre{color:#ff9b9b;font-weight:700}
 #depbar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:50;background:var(--ink);color:var(--bg);padding:6px 12px;border-radius:8px;font-size:13px;max-width:92vw;display:flex;gap:12px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)}
 #depbar .pre{color:#8ab8ff;font-weight:700}#depbar .suc{color:#ffb27a;font-weight:700}
@@ -527,6 +529,7 @@ table.sbt{border-collapse:separate;border-spacing:0;font-size:12.5px;font-varian
   <div class="dcard"><div class="dct">所有案件</div>
   <table class="lst" id="caseTbl"></table></div>
 </div></section>
+<div id="orphbar" hidden></div>
 <section id="tbl" hidden><table class="grid" id="t"></table></section>
 <section id="dl" hidden><div class="pg" id="dlBody"></div></section>
 <section id="hr" hidden><div class="pg" id="hrBody"></div></section>
@@ -626,6 +629,8 @@ const addWd=(d,n)=>{ // 從工作日 d 起算第 n 個工作日；n 可為負（
   if(n>=0){d=nextWd(d);let c=0;while(c<n){d=addD(d,1);if(isWd(d))c++}return d}
   d=prevWd(d);let c=0;while(c<-n){d=addD(d,-1);if(isWd(d))c++}return d};
 const wdDiff=(a,b)=>b>=a?wdBetween(a,b)-1:-(wdBetween(b,a)-1); // addWd(a,n)=b 的 n（a、b 皆為工作日）
+// r 是否在摘要 k 底下（含多層）。前置任務若是自己的上層摘要，等於「等自己做完才開始」，不成立
+const isUnder=(r,k,by)=>{let x=by[r.par],g=0; while(x&&g++<30){if(x.k===k)return true; x=by[x.par]} return false};
 const predBase=(p,t)=>t==='SS'?p.s:addWd(p.f,1); // 延遲 0 時的開始日
 const finishOf=(s,dur)=>addWd(s,Math.max(dur,1)-1);
 // 日期落在週末的調整規則：週六→前一個週五、週日→後一個週一；國定假日等其他非工作日：開始日往後、完成日往前找工作日
@@ -664,16 +669,18 @@ function compute(tasks,startStr){
   const by=Object.fromEntries(tasks.map(r=>[r.k,r])); const start=nextWd(pd(startStr));
   const leaf=tasks.filter(r=>r.t!==PH&&r.t!=='sum'); const done={}; let guard=0;
   for(const r of leaf){r.s=r.f=null;r.err=''}
+  const sumKids=k=>leaf.filter(x=>isUnder(x,k,by));   // 摘要底下所有葉任務
   while(Object.keys(done).length<leaf.length&&guard++<1000){
     let progressed=false;
     for(const r of leaf){
       if(done[r.k])continue;
       if(r.sm==='xls'&&r.F){r.s=pd(r.F); r.f=addD(r.s,Math.max(1,+r.J||1)-1); r.dur=Math.max(1,wdBetween(r.s,r.f)); done[r.k]=1; progressed=true; continue}
-      const preds=(r.pred||[]).filter(([k])=>by[k]&&by[k].t!==PH);
-      if(r.sm!=='fix'&&!preds.every(([k])=>done[k]||by[k].t==='sum'))continue;
+      const preds=(r.pred||[]).filter(([k])=>by[k]&&by[k].t!==PH&&!(by[k].t==='sum'&&isUnder(r,k,by)));   // 前置是自己的上層摘要 → 忽略
+      // 前置是（別的）摘要：要等它底下的任務都排完，用這一輪剛算好的日期，不能用上一輪留下的舊值
+      if(r.sm!=='fix'&&!preds.every(([k])=>by[k].t==='sum'?sumKids(k).every(x=>done[x.k]):done[k]))continue;
       let es=r.sm==='fix'&&r.fix?nextWd(pd(r.fix)):null;
       if(r.sm!=='fix'){
-        for(const [k,t,l] of preds){const p=by[k];if(!p.s)continue;const c=addWd(predBase(p,t),l||0);if(!es||c>es)es=c;}
+        for(const [k,t,l] of preds){let p=by[k]; if(p.t==='sum'){const ks=sumKids(k).filter(x=>x.s); if(!ks.length)continue; p={s:new Date(Math.min(...ks.map(x=>x.s))),f:new Date(Math.max(...ks.map(x=>x.f)))}} if(!p.s)continue;const c=addWd(predBase(p,t),l||0);if(!es||c>es)es=c;}
         if(r.snet){const c=nextWd(pd(r.snet)); if(!es||c>es)es=c} // 「不早於」日期：與前置任務並用，取較晚者
       }
       if(!es)es=start; // 專案開始日只當「沒有前置任務」的起點；有前置任務的可以比它早（例如前置任務被提早、或負延遲）
@@ -744,7 +751,7 @@ function render(){
     h+=`<tr class="${sum?'sum':''} ${SEL===r.k?'sel':''}" data-k="${esc(r.k)}">
       <td class="name">${nameCell}</td><td>${r.wbs}</td><td class="cond">${cond}</td><td class="num">${dur}</td><td class="wtc">${sum?'':wtCell(r)}</td>
       <td>${fd(r.s)}</td><td>${fd(r.f)}</td>
-      <td>${sum?'':`<input class="in w-txt" data-f="rd" value="${esc(r.rd||'')}">`}</td>
+      <td>${sum?'':`<input class="in w-txt ${orphOf(r)?'orph':''}" data-f="rd" value="${esc(r.rd||'')}">`}</td>
       <td>${sum?'':`<input class="in w-txt" data-f="co" value="${esc(r.co||'')}">`}</td>
       <td>${sum?'':`<input type="date" class="in" data-f="K" value="${esc(r.K||'')}">`}</td>
       <td>${sum?'':`<input type="date" class="in" data-f="L" value="${esc(r.L||'')}">`}</td>
@@ -855,7 +862,7 @@ function caseRows(id,json,color){
   let tasks;
   if(isCur)tasks=D; else {tasks=withCal(meta,()=>migrate((json.tasks||[]).map(r=>({...r,pred:(r.pred||[]).map(p=>[...p])})))); anchorStart(tasks,meta.default_start); withCal(meta,()=>compute(tasks,meta.default_start||fd(new Date())));}
   const wm=wbsMap(tasks);
-  const rows=tasks.map((r,ord)=>({r,ord})).filter(({r})=>r.s&&r.f).map(({r,ord})=>({ord,k:r.k,ed:isCur&&r.t!==PH&&r.t!=='sum'&&r.sm!=='xls',c:color,tag,wbs:wm[r.k][0],lvl:wm[r.k][1],name:r.name,rd:r.rd||'',s:r.s,f:r.f,sum:r.t===PH||r.t==='sum',back:r.back,ms:!!r.ms,sm:r.sm,d0:r.dur0,wt:r.wt,wtn:r.wtn,hw:r.hw,wth:r.wth,wtw:r.wtw,cx:isCur&&r.sm==='xls',snet:r.snet||'',co:r.co||'',nt:r.note||'',pk:(r.pred||[]).map(p=>p[0]),pw:(r.pred||[]).map(([k,t,l])=>[wm[k]?wm[k][0]:k,t||'FS',l||0])}));
+  const rows=tasks.map((r,ord)=>({r,ord})).filter(({r})=>r.s&&r.f).map(({r,ord})=>({ord,k:r.k,ed:isCur&&r.t!==PH&&r.t!=='sum'&&r.sm!=='xls',c:color,tag,wbs:wm[r.k][0],lvl:wm[r.k][1],name:r.name,rd:r.rd||'',s:r.s,f:r.f,sum:r.t===PH||r.t==='sum',back:r.back,ms:!!r.ms,sm:r.sm,d0:r.dur0,wt:r.wt,wtn:r.wtn,hw:r.hw,wth:r.wth,wtw:r.wtw,cx:isCur&&r.sm==='xls',snet:r.snet||'',orph:orphOf(r)?(r.orph||'未指定'):'',co:r.co||'',nt:r.note||'',pk:(r.pred||[]).map(p=>p[0]),pw:(r.pred||[]).map(([k,t,l])=>[wm[k]?wm[k][0]:k,t||'FS',l||0])}));
   return {tag,name:meta.name||'',color,rows,marks:(meta.marks||[]).map(m=>({...m,cur:isCur,tag}))};
 }
 let MSEQ=0;
@@ -980,7 +987,7 @@ function drawGantt(sel,today,g){
     const nd=Math.round((addD(r.f,1)-r.s)/864e5); let tip=`${r.tag} ${r.wbs} ${r.name}：${fd(r.s)}${r.back?'*':''} → ${fd(r.f)}｜${nd} 天（曆天含頭尾）／${wdBetween(r.s,r.f)} 工天`;
     if(!r.sum&&depNoPre(r))tip+='\n⚠ 沒有前置任務：日期不會跟著前面的任務連動，請確認是不是漏設';
     const hs=hrStat(r);
-    h+=`<div class="g-row ${r.sum?'sum':''}"><div class="g-name ${r.c}" style="padding-left:${ind}px" title="${esc(r.tag+'　'+tip+(hs?hs.t:''))}">${r.wbs} ${esc(r.name)}${r.back?' *':''}</div><div class="g-track">${tl}<div class="g-bar ${r.c} ${r.sum?'sumb':''} ${r.ed?'ed':''} ${r.ms?'hasms':''} ${!r.sum&&depNoPre(r)?'nopre':''}" ${r.ed?`data-k="${esc(r.k)}"`:''} ${r.cx?`data-xk="${esc(r.k)}"`:''} ${r.sum?'':`data-bk="${esc(r.cid+'|'+r.k)}" data-hp="${esc(Object.keys(hrW(r.rd,r.hw).m).join(','))}" data-bs="${fd(r.s)}" data-bf="${fd(r.f)}"`} style="left:${x(r.s)};width:calc(${x(addD(r.f,1))} - ${x(r.s)})" title="${esc(tip+(hs?hs.t:''))}${r.ed?'\n拖動＝改開始日；拖右緣＝改歷時；點一下＝輸入':''}">${ZOOMV>0?(()=>{const lb=`${r.wbs} ${r.name}`, cd=MULTIC?String(r.tag||''):'', lbh=(cd?`<span class="bcode">${esc(cd)}</span>`:'')+esc(lb), lbn=lb.length+(cd?cd.length+2:0), wpx=(addD(r.f,1)-r.s)/864e5*pd, wh=(r.sum||String(r.cid)!==String(CUR_ID))?'':whoShort(r), whpx=wh?wh.length*13+22:0, nIn=!!wh&&wpx>=whpx+8, inn=!r.sum&&wpx>lbn*11+12+(nIn?whpx:0);
+    h+=`<div class="g-row ${r.sum?'sum':''}"><div class="g-name ${r.c} ${r.orph?'orph':''}" style="padding-left:${ind}px" title="${esc(r.tag+'　'+tip+(hs?hs.t:''))}">${r.wbs} ${esc(r.name)}${r.back?' *':''}</div><div class="g-track">${tl}<div class="g-bar ${r.c} ${r.sum?'sumb':''} ${r.ed?'ed':''} ${r.ms?'hasms':''} ${!r.sum&&depNoPre(r)?'nopre':''} ${r.orph?'orph':''}" ${r.ed?`data-k="${esc(r.k)}"`:''} ${r.cx?`data-xk="${esc(r.k)}"`:''} ${r.sum?'':`data-bk="${esc(r.cid+'|'+r.k)}" data-hp="${esc(Object.keys(hrW(r.rd,r.hw).m).join(','))}" data-bs="${fd(r.s)}" data-bf="${fd(r.f)}"`} style="left:${x(r.s)};width:calc(${x(addD(r.f,1))} - ${x(r.s)})" title="${esc(tip+(hs?hs.t:''))}${r.ed?'\n拖動＝改開始日；拖右緣＝改歷時；點一下＝輸入':''}">${ZOOMV>0?(()=>{const lb=`${r.wbs} ${r.name}`, cd=MULTIC?String(r.tag||''):'', lbh=(cd?`<span class="bcode">${esc(cd)}</span>`:'')+esc(lb), lbn=lb.length+(cd?cd.length+2:0), wpx=(addD(r.f,1)-r.s)/864e5*pd, wh=(r.sum||String(r.cid)!==String(CUR_ID))?'':whoShort(r), whpx=wh?wh.length*13+22:0, nIn=!!wh&&wpx>=whpx+8, inn=!r.sum&&wpx>lbn*11+12+(nIn?whpx:0);
       if(r.sum)return `<span class="bl bout">${lbh}　<span class="bn2">${nd} 天</span></span>`;
       return `<span class="bd bs">${sd(r.s)}</span>`+(inn?`${nIn?`<span class="bwho">${esc(wh)}</span>`:''}<span class="bl bin" ${nIn?`style="max-width:calc(100% - ${whpx}px)"`:''}>${lbh}${wpx>(lbn+7)*11+12?` <span style="opacity:.85">· ${nd} 天</span>`:''}</span><span class="bd be">${sd(r.f)} · ${nd} 天</span>`:`${nIn?`<span class="bwho">${esc(wh)}</span>`:''}<span class="bl bout"><span class="bdt">${sd(r.f)} · ${nd} 天</span>${lbh}</span>`)})():`<span class="bn ${((end-addD(r.f,1))/864e5*pd<56)?'l':'r'}">${nd} 天</span>`}${r.ed?'<span class="gh"></span>':''}</div>${r.ms?`<svg class="g-ms" style="left:${x(addD(r.f,1))}" width="16" height="20" viewBox="0 0 16 20" aria-label="里程碑"><line x1="1" y1="0.5" x2="1" y2="20" stroke="currentColor" stroke-width="2"/><path d="M2 1 L15.5 5.5 L2 10 Z" fill="currentColor"/></svg>`:''}</div></div>`;
   }
@@ -1418,7 +1425,7 @@ function openPopMulti(cx,cy){
     <div class="pp-act"><button class="act" data-a="cancel" type="button">取消</button><button class="act primary" data-a="ok" type="button">全部套用</button></div>`;
   document.body.appendChild(box);
   const wm=W(), selK=new Set(rs.map(r=>r.k)), minI=Math.min(...rs.map(r=>D.findIndex(q=>q.k===r.k)));
-  const opts=D.filter((q,i)=>i<minI&&!selK.has(q.k)&&q.t!==PH).map(q=>[q.k,`${wm[q.k][0]} ${q.name}${q.t==='sum'?'（摘要）':''}`]);
+  const opts=D.filter((q,i)=>i<minI&&!selK.has(q.k)&&q.t!==PH&&!(q.t==='sum'&&rs.some(x=>isUnder(x,q.k,byK)))).map(q=>[q.k,`${wm[q.k][0]} ${q.name}${q.t==='sum'?'（摘要）':''}`]);
   const plist=box.querySelector('.pp-preds');
   const addPred=(k,t,l)=>{const d=document.createElement('div');d.className='pr';
     d.innerHTML=`<select data-q="k"><option value="">— 選子任務 —</option>${opts.map(([v,n])=>`<option value="${esc(v)}" ${v===k?'selected':''}>${esc(n)}</option>`).join('')}</select>
@@ -1428,7 +1435,7 @@ function openPopMulti(cx,cy){
   box.querySelector('[data-m=predon]').onchange=ev=>{box.querySelector('[data-m=predbox]').hidden=!ev.target.checked; const tp=parseFloat(box.style.top)||0; if(tp+box.offsetHeight>innerHeight-8)box.style.top=Math.max(4,innerHeight-box.offsetHeight-8)+'px'};
   box.style.left=Math.max(4,Math.min(cx,innerWidth-450))+'px'; box.style.top=Math.max(4,Math.min(cy+8,innerHeight-box.offsetHeight-8))+'px';
   const chk=null; const fit=()=>{const tp=parseFloat(box.style.top)||0; if(tp+box.offsetHeight>innerHeight-8)box.style.top=Math.max(4,innerHeight-box.offsetHeight-8)+'px'}; if(chk)chk.onchange=()=>{box.querySelector('.pp-ppl').hidden=!chk.checked;fit()};
-  box.onchange=async ev=>{const sel=ev.target.closest('[data-pn]'); if(!sel||sel.value!=='__new')return; const n=(await DLG.prompt('新增人名')||'').trim(); if(!n){sel.value='';return} if(![...sel.options].some(o=>o.value===n))sel.insertBefore(new Option(n,n),sel.querySelector('[value=__new]')); sel.value=n};
+  box.onchange=async ev=>{const sel=ev.target.closest('[data-pn]'); if(!sel||sel.value!=='__new')return; if(orgPeople().size){sel.value='';DLG.alert('只能選組織圖上的人。要加新人，請先到「組織圖」分頁新增並存檔。');return} const n=(await DLG.prompt('新增人名')||'').trim(); if(!n){sel.value='';return} if(![...sel.options].some(o=>o.value===n))sel.insertBefore(new Option(n,n),sel.querySelector('[value=__new]')); sel.value=n};
   box.onclick=ev=>{const a=ev.target.dataset.a;if(!a)return;if(a==='cancel'){closePop();return}
     if(a==='add'){addPred('','FS',0);return} if(a==='pdel2'){ev.target.closest('.pr').remove();return}
     if(a==='padd'||a==='pdel'){const wrap=box.querySelector('.pp-prs'); if(a==='pdel')ev.target.closest('.pp-pr').remove(); else{const kn=ppKnown([...box.querySelectorAll('[data-pn]')].map(x=>x.value)); if(!wrap.querySelector('.pp-pr'))wrap.innerHTML=''; wrap.insertAdjacentHTML('beforeend',ppRow('',0,!wrap.querySelector('.pp-pr'),false,kn))}
@@ -1452,7 +1459,7 @@ function openPopMulti(cx,cy){
 // 小視窗
 
 // 調整視窗的「人力」區：共同負責比例、工作類型、實際工時、週期（回合數）、等待天數
-function ppKnown(extra){const lf=new Set(ORG.left||[]); return [...new Set([...(ORG.units||[]).flatMap(u=>(u.people||[]).map(p=>p.n)),...Object.keys(orgStats()).filter(hrIsP),...(extra||[])])].filter(n=>!lf.has(n)||(extra||[]).includes(n)).sort()}
+function ppKnown(extra){const lf=new Set(ORG.left||[]), OP=orgPeople(); return [...new Set([...(ORG.units||[]).flatMap(u=>(u.people||[]).map(p=>p.n)),...(OP.size?[]:Object.keys(orgStats()).filter(hrIsP)),...(extra||[])])].filter(n=>!lf.has(n)||(extra||[]).includes(n)).sort()}
 function ppRow(n,v,first,XLS,known){
   const opts=(known.includes(n)||!n?known:[...known,n]);
   return `<div class="pp-pr"><span class="pp-role">${first?'主辦':'協辦'}</span><select data-pn ${XLS?'disabled':''}><option value="">— 選人 —</option>${opts.map(x=>`<option value="${esc(x)}" ${x===n?'selected':''}>${esc(x)}</option>`).join('')}${XLS?'':'<option value="__new">＋ 新增人名…</option>'}</select><input type="number" data-pv min="0" max="100" step="5" value="${v}" title="工作比例（%），合計自動換算成 100"><span>%</span>${XLS?'':'<button type="button" data-a="pdel" title="移除">✕</button>'}</div>`}
@@ -1495,7 +1502,7 @@ function openPop(r,cx,cy){
     <div class="pp-act"><button class="act" data-a="cancel" type="button">取消</button><button class="act primary" data-a="ok" type="button">確定</button></div>`;
   box.classList.add('wide'); document.body.appendChild(box);
   const ci=D.findIndex(q=>q.k===r.k), cur=new Set((r.pred||[]).map(p=>p[0])); // 前置任務只能選排在前面的任務（已設定的舊關係照常保留顯示）
-  const opts=D.filter((q,i)=>q.k!==r.k&&q.t!==PH&&(i<ci||cur.has(q.k))).map(q=>[q.k,`${wm[q.k][0]} ${q.name}${q.t==='sum'?'（摘要）':''}`]);
+  const opts=D.filter((q,i)=>q.k!==r.k&&q.t!==PH&&!(q.t==='sum'&&isUnder(r,q.k,byK))&&(i<ci||cur.has(q.k))).map(q=>[q.k,`${wm[q.k][0]} ${q.name}${q.t==='sum'?'（摘要）':''}`]);
   const list=box.querySelector('.pp-preds');
   const addRow=(k,t,l)=>{const d=document.createElement('div');d.className='pr';
     d.innerHTML=`<select data-q="k"><option value="">— 選子任務 —</option>${opts.map(([v,n])=>`<option value="${esc(v)}" ${v===k?'selected':''}>${esc(n)}</option>`).join('')}</select>
@@ -1505,7 +1512,7 @@ function openPop(r,cx,cy){
   const sync=()=>{const fix=box.querySelector('[data-p=sm]').value==='fix';box.querySelector('.pp-pred').hidden=fix;box.querySelector('.pp-fix').hidden=!fix; const tp=parseFloat(box.style.top)||0; if(tp+box.offsetHeight>innerHeight-8)box.style.top=Math.max(4,innerHeight-box.offsetHeight-8)+'px'};
   sync(); box.querySelector('[data-p=sm]').onchange=sync;
   box.style.left=Math.max(4,Math.min(cx,innerWidth-450))+'px'; box.style.top=Math.max(4,Math.min(cy+8,innerHeight-box.offsetHeight-8))+'px';
-  box.onchange=async ev=>{const sel=ev.target.closest('[data-pn]'); if(!sel||sel.value!=='__new')return; const n=(await DLG.prompt('新增人名')||'').trim(); if(!n){sel.value='';return} if(![...sel.options].some(o=>o.value===n))sel.insertBefore(new Option(n,n),sel.querySelector('[value=__new]')); sel.value=n; const rs=[...box.querySelectorAll('.pp-pr')], df=ppDefaults(rs.length); if(rs.length>1&&rs.every(d=>!+d.querySelector('[data-pv]').value||true)){} };
+  box.onchange=async ev=>{const sel=ev.target.closest('[data-pn]'); if(!sel||sel.value!=='__new')return; if(orgPeople().size){sel.value='';DLG.alert('只能選組織圖上的人。要加新人，請先到「組織圖」分頁新增並存檔。');return} const n=(await DLG.prompt('新增人名')||'').trim(); if(!n){sel.value='';return} if(![...sel.options].some(o=>o.value===n))sel.insertBefore(new Option(n,n),sel.querySelector('[value=__new]')); sel.value=n; const rs=[...box.querySelectorAll('.pp-pr')], df=ppDefaults(rs.length); if(rs.length>1&&rs.every(d=>!+d.querySelector('[data-pv]').value||true)){} };
   box.onclick=ev=>{const a=ev.target.dataset.a;if(!a)return;if(a==='cancel'){closePop();return}
     if(a==='add'){addRow('','FS',0);return} if(a==='del'){ev.target.closest('.pr').remove();return}
     if(a.startsWith('m-')){closePop(); SEL=r.k; ({'m-add':'btnAdd','m-link':'btnLink','m-base':'btnBase','m-undo':'btnUndo','m-del':'btnDel'})[a]&&document.getElementById(({'m-add':'btnAdd','m-link':'btnLink','m-base':'btnBase','m-undo':'btnUndo','m-del':'btnDel'})[a]).click(); return}
@@ -1670,7 +1677,7 @@ async function doXlsx(){
       let es;
       if(r.sm==='fix')es=nxF(r.fix||nextWd(pd(startStr)));
       else{const parts=[];
-        for(const [k,t,l] of (r.pred||[])){const p=byK[k]; if(!p||p.t===PH||!p.s)continue;
+        for(const [k,t,l] of (r.pred||[])){const p=byK[k]; if(!p||p.t===PH||!p.s||(p.t==='sum'&&isUnder(r,k,byK)))continue;
           const base=t==='SS'?refS(p):wdF(refF(p),1); parts.push(l?wdF(base,l):base)}
         if(r.snet)parts.push(nxF(r.snet));
         es=!parts.length?nxF(startStr):(parts.length>1?`MAX(${parts.join(',')})`:parts[0])}
@@ -2170,7 +2177,7 @@ async function loadProjects(keepTab){
     LOADED.add(pick); saveLoaded();
     await Promise.all([...LOADED].map(id=>fetchCase(id).catch(()=>null)));
     await loadWt();
-    await loadEntry(pick); st.textContent='';
+    await loadEntry(pick); st.textContent=''; try{await loadOrg(); await orphSweep()}catch{}
     if(!keepTab)showTab('cases'); else renderCases();
   }catch(e){st.textContent='讀取失敗：'+e.message}
 }
@@ -2182,7 +2189,7 @@ async function loadEntry(id){
     CUR_ID=String(id); LOADED.add(CUR_ID); saveLoaded();
     setData(JSON.parse(JSON.stringify(data)));
     try{localStorage.setItem('pm_last_entry',String(id))}catch{} try{aiSync()}catch{}
-    st.textContent='';
+    st.textContent=''; try{await loadOrg(); await orphSweep()}catch{}
   }catch(err){st.textContent='案件資料格式錯誤或讀取失敗：'+err.message}
 }
 // ===== ① 案件分頁 =====
@@ -3071,7 +3078,7 @@ async function saveOrg(){
     else{const folders=await api('/folders'); const f=folders.find(x=>x.name===PM_FOLDER||String(x.name||'').endsWith(PM_FOLDER)); if(!f)throw new Error('找不到資料夾');
       const r=await pmFetch('/api/entries',{method:'POST',headers:H,body:JSON.stringify({folder_id:f.id,title:ORG_PREFIX+'邦特',body,body_format:'text'})}); if(!r.ok)throw new Error('HTTP '+r.status);
       const j=await r.json(); ORG_ENTRY={id:j.id,title:ORG_PREFIX+'邦特'}}
-    ORG_DIRTY=false; st.textContent='已存組織圖（'+new Date().toLocaleTimeString()+'）'; renderOrg();
+    ORG_DIRTY=false; st.textContent='已存組織圖（'+new Date().toLocaleTimeString()+'）'; renderOrg(); ORPH_NO.clear(); orphSweep();
   }catch(e){st.textContent='存組織圖失敗：'+e.message}
 }
 
@@ -3102,5 +3109,40 @@ document.getElementById('bkFile').addEventListener('change',async e=>{
 });
 PMREADY.then(()=>loadProjects());
 
+
+// ===== 負責人必須是組織圖上的人 =====
+// 任務「執行人」(rd) 與「專案負責人」若不在組織圖（單位底下的人員、且不是已離職）→ 移除該名字、任務標紅框，請使用者選誰要扛
+const orgPeople=()=>{const lf=new Set(ORG.left||[]); return new Set((ORG.units||[]).flatMap(u=>(u.people||[]).map(p=>p.n)).filter(n=>!lf.has(n)))};
+const orphOf=r=>!!r.orph&&!hrTok(r.rd).some(hrIsP);
+const ORPH_NO=new Set();   // 使用者按「先不處理」的案件，這次開啟不再詢問
+async function orphSweep(){
+  const op=orgPeople(); if(!op.size||!D.length||ORPH_NO.has(CUR_ID))return 0;
+  const todo=[]; for(const r of D){ if(r.t===PH||r.t==='sum'||r.sm==='xls')continue; const bad=hrTok(r.rd).filter(n=>hrIsP(n)&&!op.has(n)); if(bad.length)todo.push([r,bad]) }
+  const ld=String(META.leader||'').trim(), leadBad=!!ld&&hrIsP(ld)&&!op.has(ld);
+  if(!todo.length&&!leadBad)return 0;
+  const names=[...new Set([...todo.flatMap(x=>x[1]),...(leadBad?[ld]:[])])];
+  if(!await DLG.confirm(`這個案件有 ${names.length} 位不在組織圖上的人：\n${names.join('、')}\n（${todo.length} 個任務的執行人${leadBad?'、專案負責人':''}）\n\n按「確定」：把這些名字移除，任務會出現紅框，請你選誰要扛。\n按「取消」：先不處理。\n（處理後可按 ↶ 復原；沒按「存檔」不會寫進資料庫）`)){ORPH_NO.add(CUR_ID); return 0}
+  pushUndo();
+  for(const [r,bad] of todo){ const keep=hrTok(r.rd).filter(n=>!bad.includes(n)); if(keep.length)r.rd=keep.join('/'); else delete r.rd; delete r.hw; r.orph=[...new Set([...(r.orph?String(r.orph).split('/'):[]),...bad])].join('/') }
+  if(leadBad){META.orphLead=ld; META.leader=''}
+  setDirty(true); render(); document.getElementById('msg').textContent=`已移除 ${names.length} 位不在組織圖的人，請在紅色提示列選誰要扛`;
+  return todo.length+(leadBad?1:0)}
+function orphBanner(){
+  const b=document.getElementById('orphbar'); if(!b)return;
+  const list=D.filter(r=>r.t!==PH&&r.t!=='sum'&&orphOf(r)), lead=!!META.orphLead&&!String(META.leader||'').trim(), op=[...orgPeople()].sort();
+  if(!list.length&&!lead){b.hidden=true;b.innerHTML='';return}
+  const wm=W(), sel=k=>`<select data-orph="${esc(k)}"><option value="">選誰要扛…</option>${op.map(n=>`<option>${esc(n)}</option>`).join('')}</select>`;
+  b.hidden=false;
+  b.innerHTML=`<b>⚠ 有負責人不在組織圖上，已移除，請選誰要扛</b>　<span class="oh2">${list.length?`${list.length} 個任務`:''}${lead?'、專案負責人':''}</span>`+
+    (list.length>1?`<div class="orow"><span>全部任務一次指定給</span>${sel('*')}</div>`:'')+
+    (lead?`<div class="orow"><span>專案負責人（原：${esc(META.orphLead)}）</span>${sel('__lead')}</div>`:'')+
+    `<div class="olist">${list.map(r=>`<div class="orow"><a href="#" data-oj="${esc(r.k)}" title="跳到這個任務">${esc((wm[r.k]?wm[r.k][0]:'')+' '+r.name)}</a><small>原：${esc(r.orph)}</small>${sel(r.k)}</div>`).join('')}</div>`}
+document.addEventListener('change',e=>{
+  const s=e.target.closest('[data-orph]'); if(!s||!s.value)return; const n=s.value, k=s.dataset.orph; pushUndo();
+  const put=r=>{const ex=hrTok(r.rd).filter(x=>!hrIsP(x)); r.rd=[n,...ex].join('/'); delete r.orph; delete r.hw};
+  if(k==='__lead'){META.leader=n; delete META.orphLead} else if(k==='*'){D.filter(orphOf).forEach(put)} else if(byK[k])put(byK[k]);
+  setDirty(true); render(); try{applyDep()}catch{}});
+document.addEventListener('click',e=>{const a=e.target.closest('[data-oj]'); if(!a)return; e.preventDefault(); showTab('multi'); setTimeout(()=>{const t=[...document.querySelectorAll('#mg .g-bar[data-bk]')].find(x=>x.dataset.bk===CUR_ID+'|'+a.dataset.oj); if(t)t.scrollIntoView({block:'center',inline:'center',behavior:'smooth'})},400)});
+{const _r=render; render=function(){const v=_r.apply(this,arguments); try{orphBanner()}catch{} return v}}
 </script>
 </body></html>
