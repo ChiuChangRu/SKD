@@ -395,6 +395,19 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .g-row .g-name.pa,.g-row .g-name.pb,.g-row .g-name.pc,.g-row .g-name.pd{border-left:4px solid var(--bar)}.g-row .g-name.pb{border-left-color:var(--projb)}.g-row .g-name.pc{border-left-color:#3f8f5f}.g-row .g-name.pd{border-left-color:#7a5cb8}
 .g-bar .bwho{position:absolute;right:4px;top:4px;font-size:12px;line-height:18px;font-weight:700;color:#fff;background:rgba(18,28,44,.78);border-radius:3px;padding:0 6px;white-space:nowrap;pointer-events:none}
 .g-bar[data-xk]{cursor:pointer}
+/* 依賴關係：點任務 → 前案（藍）、後案（橘）箭頭 */
+#mg .dpsvg{position:absolute;left:0;top:0;pointer-events:none;z-index:2;overflow:visible}
+.g-row.dpdim .g-bar,.g-row.dpdim .g-name{opacity:.25}
+.g-bar.dp-me{outline:3px solid var(--ink);outline-offset:1px;position:relative;z-index:3}
+.g-bar.dp-pre{outline:2px solid #1f6feb;outline-offset:1px}
+.g-bar.dp-suc{outline:2px solid #e8590c;outline-offset:1px}
+.g-row.dp-pre .g-name::after{content:"　◀ 前案";color:#1f6feb;font-weight:700}
+.g-row.dp-suc .g-name::after{content:"　後案 ▶";color:#e8590c;font-weight:700}
+.g-row.dp-me .g-name::after{content:"　● 選取";font-weight:700}
+#depbar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:50;background:var(--ink);color:var(--bg);padding:6px 12px;border-radius:8px;font-size:13px;max-width:92vw;display:flex;gap:12px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+#depbar .pre{color:#8ab8ff;font-weight:700}#depbar .suc{color:#ffb27a;font-weight:700}
+#depbar button{background:none;border:1px solid currentColor;color:inherit;border-radius:4px;cursor:pointer;font:inherit;padding:1px 8px}
+
 .hrdock{position:sticky;bottom:0;z-index:4;background:color-mix(in srgb,var(--accent) 8%,var(--chrome));border-top:3px solid var(--ink);box-shadow:0 -4px 10px rgba(0,0,0,.2)}
 .hrdock .g-row{border-bottom:1px solid color-mix(in srgb,var(--ink) 14%,transparent)}
 .hrdock .g-name{background:color-mix(in srgb,var(--accent) 8%,var(--chrome));font-weight:600;border-right:2px solid var(--ink)}
@@ -914,7 +927,7 @@ function zoomRender(){
 function setZoomUI(){const zs=document.getElementById('zoom'); if(zs&&+zs.value!==ZOOMV)zs.value=ZOOMV}
 function drawGantt(sel,today,g){
   if(MLAYOUT==='cmp'){renderCmp(sel,g);return} g.classList.remove('cmp');
-  sel.forEach(c=>c.rows.forEach(r=>{r.cid=c.id}));
+  sel.forEach(c=>c.rows.forEach(r=>{r.cid=c.id})); DEPSEL=sel.flatMap(c=>c.rows);
   HRM=HRSHOW?((HRC&&HRC.seq===MSEQ)?HRC.H:(HRC={seq:MSEQ,H:hrCompute()}).H):null;
   let rows;
   if(MLAYOUT==='lane'){
@@ -973,8 +986,63 @@ function drawGantt(sel,today,g){
   g.innerHTML=h; GAX={s0,span,pd,today};
   sc0.scrollLeft=Math.max(0,ZCUR?ZCUR.day*pd-ZCUR.px:keepDay*pd-(sc0.clientWidth-gn)/2); ZANCHOR=null; ZCUR=null;
   const zl=document.getElementById('zlab'); if(zl){zl.textContent=Math.round(pd/fitPd*100).toLocaleString()+'%'; zl.title='相對於「全覽」(100%)；目前顯示單位：'+(dz?'日':pd>=3?'週':'月');}
-  applyHrFocus();
+  applyHrFocus(); applyDep();
 }
+
+// ===== 依賴關係：點任務 → 前案（藍）、後案（橘）用箭頭標示（只看直接相連的一層；指定日期的任務不吃前置，所以沒有前案）=====
+let DEPK=null, DEPSEL=[], DEPDN=null;
+function depRel(key){
+  const i=key.indexOf('|'), cid=key.slice(0,i), tk=key.slice(i+1);
+  const rs=(DEPSEL||[]).filter(r=>String(r.cid)===cid&&!r.sum), me=rs.find(r=>r.k===tk); if(!me)return null;
+  const pre=[], suc=[];
+  if(me.sm!=='fix')(me.pk||[]).forEach((pk,i)=>{const p=rs.find(x=>x.k===pk); if(p){const w=(me.pw||[])[i]||[]; pre.push({r:p,t:w[1]||'FS',l:w[2]||0})}});
+  rs.forEach(x=>{ if(x.sm==='fix')return; (x.pk||[]).forEach((pk,i)=>{ if(pk===tk){const w=(x.pw||[])[i]||[]; suc.push({r:x,t:w[1]||'FS',l:w[2]||0})} }) });
+  return {me,pre,suc,cid};
+}
+function depBar(rel){
+  let b=document.getElementById('depbar'); if(!rel){if(b)b.remove();return}
+  if(!b){b=document.createElement('div'); b.id='depbar'; document.body.appendChild(b); b.onclick=e=>{if(e.target.dataset.a==='depx'){DEPK=null;applyDep()}}}
+  const nm=x=>esc(x.r.wbs+' '+x.r.name), lst=a=>a.length?a.slice(0,4).map(nm).join('、')+(a.length>4?` 等 ${a.length} 個`:''):'（無）';
+  b.innerHTML=`<span><b>${esc(rel.me.wbs+' '+rel.me.name)}</b></span><span><span class="pre">◀ 前案</span> ${lst(rel.pre)}</span><span><span class="suc">後案 ▶</span> ${lst(rel.suc)}</span><button type="button" data-a="depx" title="快捷鍵 Esc">結束 ✕</button>`;
+}
+function applyDep(){
+  const g=document.getElementById('mg'); if(!g)return;
+  g.querySelectorAll('.dpsvg').forEach(e=>e.remove());
+  g.querySelectorAll('.dp-me,.dp-pre,.dp-suc').forEach(e=>e.classList.remove('dp-me','dp-pre','dp-suc'));
+  g.querySelectorAll('.g-row.dpdim,.g-row.dpk').forEach(e=>e.classList.remove('dpdim','dpk'));
+  if(!DEPK||MLAYOUT==='cmp'){depBar(null);return}
+  const rel=depRel(DEPK); if(!rel){DEPK=null;depBar(null);return}
+  const bars={}; g.querySelectorAll('.g-bar[data-bk]').forEach(b=>{bars[b.dataset.bk]=b});
+  const bk=r=>bars[rel.cid+'|'+r.k], meB=bk(rel.me); if(!meB){DEPK=null;depBar(null);return}
+  const mark=(b,c)=>{if(!b)return; b.classList.add(c); const row=b.closest('.g-row'); if(row){row.classList.add('dpk',c)}};
+  mark(meB,'dp-me'); rel.pre.forEach(x=>mark(bk(x.r),'dp-pre')); rel.suc.forEach(x=>mark(bk(x.r),'dp-suc'));
+  g.querySelectorAll('.g-row').forEach(row=>{if(!row.classList.contains('dpk')&&!row.classList.contains('lane'))row.classList.add('dpdim')});
+  const NS='http://www.w3.org/2000/svg', svg=document.createElementNS(NS,'svg'); svg.setAttribute('class','dpsvg'); svg.setAttribute('width',g.scrollWidth); svg.setAttribute('height',g.scrollHeight);
+  svg.innerHTML='<defs><marker id="dpa1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f6feb"/></marker><marker id="dpa2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e8590c"/></marker></defs>';
+  g.appendChild(svg); const o=svg.getBoundingClientRect();
+  const R=el=>{const b=el.getBoundingClientRect(); return {l:b.left-o.left,r:b.right-o.left,y:b.top-o.top+b.height/2}};
+  const edge=(fromB,toB,type,lag,col,mk)=>{ if(!fromB||!toB)return; const a=R(fromB), b=R(toB);
+    const x1=type==='SS'?a.l:a.r, y1=a.y, x2=b.l, y2=b.y, sx=type==='SS'?x1-9:x1+9, ex=x2-9, dir=y2>=y1?1:-1;
+    const ym=y1+dir*Math.max(10,Math.min(Math.abs(y2-y1)/2,14));
+    const d=sx<=ex?`M${x1},${y1} H${sx} V${y2} H${x2}`:`M${x1},${y1} H${sx} V${ym} H${ex} V${y2} H${x2}`;
+    const p=document.createElementNS(NS,'path'); p.setAttribute('d',d); p.setAttribute('fill','none'); p.setAttribute('stroke',col); p.setAttribute('stroke-width','2'); p.setAttribute('marker-end',`url(#${mk})`); svg.appendChild(p);
+    const lb=(type==='SS'?'SS':'')+(lag?(lag>0?'+':'')+lag+'d':''); if(lb){const t=document.createElementNS(NS,'text'); t.setAttribute('x',Math.min(sx,ex)+3); t.setAttribute('y',(sx<=ex?(y1+y2)/2:ym)-3); t.setAttribute('font-size','11'); t.setAttribute('font-weight','700'); t.setAttribute('fill',col); t.setAttribute('paint-order','stroke'); t.setAttribute('stroke','var(--bg)'); t.setAttribute('stroke-width','3'); t.textContent=lb; svg.appendChild(t)} };
+  rel.pre.forEach(x=>edge(bk(x.r),meB,x.t,x.l,'#1f6feb','dpa1'));
+  rel.suc.forEach(x=>edge(meB,bk(x.r),x.t,x.l,'#e8590c','dpa2'));
+  depBar(rel);
+}
+(()=>{ const g=document.getElementById('mg');
+  g.addEventListener('pointerdown',e=>{DEPDN={x:e.clientX,y:e.clientY}});
+  g.addEventListener('click',e=>{
+    if(e.ctrlKey||e.metaKey||e.shiftKey||e.target.closest('.gh,.hc,.mk,button,input,select'))return;
+    if(DEPDN&&(Math.abs(e.clientX-DEPDN.x)>4||Math.abs(e.clientY-DEPDN.y)>4))return;   // 拖曳不算點選
+    let b=e.target.closest('.g-bar[data-bk]'); if(b&&(b.classList.contains('ed')||b.dataset.xk))return;   // 可編輯的條塊：第一次點＝看前後案、再點一次＝開編輯視窗（在別處處理）
+    if(!b){const row=e.target.closest('.g-row'); if(row&&e.target.closest('.g-name'))b=row.querySelector('.g-bar[data-bk]')}
+    if(!b){return}
+    const k=b.dataset.bk; DEPK=DEPK===k?null:k; applyDep();
+  });
+  let rt=0; window.addEventListener('resize',()=>{clearTimeout(rt); rt=setTimeout(()=>{if(DEPK)applyDep()},150)});
+})();
 document.getElementById('mLegend').addEventListener('click',async e=>{
   if(e.target.id==='hrtog'){HRSHOW=!HRSHOW; try{localStorage.setItem('pm_hrshow',HRSHOW?'1':'0')}catch{} render(); return}
   const eb=e.target.closest('button[data-edit]'); if(eb){const id=eb.dataset.edit; if(id===CUR_ID)return;
@@ -1265,7 +1333,7 @@ document.getElementById('mg').addEventListener('pointerdown',e=>{
 });
 document.getElementById('mg').addEventListener('pointerup',e=>{
   if(!DRAG)return; const d=DRAG; DRAG=null; d.bar.style.transform=''; (d.gb||[]).forEach(x=>{x.bar.style.transform=''}); const dt=document.getElementById('dragTip'); if(dt)dt.remove();
-  if(!d.moved){if(d.group)openPopMulti(e.clientX,e.clientY); else openPop(d.r,e.clientX,e.clientY);return}
+  if(!d.moved){if(d.group)openPopMulti(e.clientX,e.clientY); else {const bk=d.bar.dataset.bk; if(bk&&DEPK!==bk){DEPK=bk;applyDep()} else openPop(d.r,e.clientX,e.clientY)} return}
   const days=Math.round((e.clientX-d.x0)/d.pxPerDay); if(!days){render();return}
   pushUndo(); let warn='';
   if(d.group){
@@ -1446,7 +1514,7 @@ document.addEventListener('pointerdown',e=>{if(!e.target.closest('#ctx'))closeCt
 const markEdit=async (d,old)=>{const lb=await DLG.prompt(`註記 ${d} 的文字（例：送件、客戶審查、展覽）`,old?old.label:'');if(lb==null)return;
   pushUndo(); META.marks=(META.marks||[]).filter(m=>m!==old); META.marks.push({d,label:lb.trim()||'註記'}); META.marks.sort((a,b)=>a.d<b.d?-1:1); setDirty(true); render()};
 document.getElementById('mg').addEventListener('click',e=>{const b=e.target.closest('.g-bar[data-xk]'); if(!b||e.target.closest('.gh'))return; if(e.ctrlKey||e.metaKey||e.shiftKey)return; const k=b.dataset.xk;
-  if(MSEL.size>1&&MSEL.has(k)){openPopMulti(e.clientX,e.clientY);return} if(MSEL.size)clearSel(); const r=byK[k]; if(r)openPop(r,e.clientX,e.clientY)});
+  if(MSEL.size>1&&MSEL.has(k)){openPopMulti(e.clientX,e.clientY);return} if(MSEL.size)clearSel(); const r=byK[k]; if(!r)return; const bk=b.dataset.bk; if(bk&&DEPK!==bk){DEPK=bk;applyDep();return} openPop(r,e.clientX,e.clientY)});
 document.getElementById('mg').addEventListener('mousedown',e=>{if(e.target.closest('input,select,textarea'))return; if(e.detail>1||e.shiftKey||e.ctrlKey||e.metaKey)e.preventDefault()});
 document.getElementById('mg').addEventListener('pointerdown',e=>{
   if(e.button!==0||e.pointerType==='touch'||!GAX||e.target.closest('.g-bar,.hrdock,#selbar,.g-head,.g-name,.mk,button,input,select,a'))return;
@@ -1504,7 +1572,7 @@ document.getElementById('mg').addEventListener('contextmenu',e=>{
     sc.scrollLeft+=d*0.25; raf=requestAnimationFrame(step)}
   sc.addEventListener('pointerdown',()=>{target=null});   // 使用者自己操作時停止
 })();
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePop();closeCtx();clearSel(); if(HRF){HRF=null;applyHrFocus()}} if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.target.closest('input,select')){e.preventDefault();undo()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePop();closeCtx();clearSel(); if(HRF){HRF=null;applyHrFocus()} if(DEPK){DEPK=null;applyDep()}} if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.target.closest('input,select')){e.preventDefault();undo()}});
 document.getElementById('btnUndo').onclick=undo;
 document.getElementById('cal').onchange=e=>{ if(true){syncCal();return}  /* 既有案件的行事曆已鎖定 */ pushUndo(); if(e.target.value==='weekend')META.calendar='weekend'; else delete META.calendar; syncCal(); setDirty(true); render();
   document.getElementById('msg').textContent=USE_HOL?'改用「六日休＋國定假日休」重算':'改用「六日休（週一～五）．國定假日照常」重算（與鼎新 PLM 相同）'};
