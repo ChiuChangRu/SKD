@@ -1844,12 +1844,12 @@ async function doPptx(){
       const x=px(d), m=d.getUTCMonth()+1;
       sl.addText(m+'月',{x:x-0.05,y:AY+0.33,w:0.9,h:0.28,fontFace:MONO,fontSize:11,color:'444444',margin:0,isTextBox:true});
       if(m===1||+d===+ax0) sl.addText(String(d.getUTCFullYear()),{x:x-0.05,y:AY+0.02,w:0.9,h:0.3,fontFace:MONO,fontSize:13,bold:true,color:'111111',margin:0,isTextBox:true});
-      if(m===1&&+d>+ax0) sl.addShape(pres.ShapeType.line,{x:x,y:AY+0.62,w:0,h:0.2+lanes.length*2.25,line:{color:'BBBBBB',width:0.75,dashType:'dash'}});
+      if(m===1&&+d>+ax0) sl.addShape(pres.ShapeType.line,{x:x,y:AY+0.62,w:0,h:0.2+lanes.length*2.4,line:{color:'BBBBBB',width:0.75,dashType:'dash'}});
     }
     const COL=['111111','1F4E79','2E7D32'];
     const notes=[]; let anyStar=false;
     lanes.forEach((L,i)=>{
-      const y0=AY+0.8+i*2.25, c=COL[i%COL.length];
+      const y0=AY+0.8+i*2.4, c=COL[i%COL.length];
       sl.addText(L.name||'案件',{x:0.5,y:y0+0.5,w:1.85,h:0.7,fontFace:FONT,fontSize:18,bold:true,color:'111111',margin:0,valign:'middle',isTextBox:true});
       const certEnd=L.cert?L.cert.f:allMax, days=dayDiff(L.first,certEnd);
       sl.addText(`發案(${L.first.getUTCFullYear()}/${L.first.getUTCMonth()+1})→領證(${certEnd.getUTCFullYear()}/${certEnd.getUTCMonth()+1})\n${days} 天`,{x:0.5,y:y0+1.25,w:1.85,h:0.7,fontFace:MONO,fontSize:11,bold:true,color:'C8102E',margin:0,isTextBox:true});
@@ -1868,7 +1868,7 @@ async function doPptx(){
       if(L.a1){ const d=L.a1.f; sl.addText('1年老化 '+md(d),{x:px(d)-0.9,y:y0+1.58,w:1.8,h:0.26,fontFace:MONO,fontSize:11,bold:true,color:'C8102E',align:'center',margin:0,isTextBox:true}); anyStar=anyStar||d.getUTCFullYear()>=2028 }
       // 驗證最後完成
       const v=[L.ster&&['滅菌確效',L.ster.f],L.a1&&['1年老化',L.a1.f],L.a3&&['3年老化',L.a3.f]].filter(Boolean).sort((a,b)=>b[1]-a[1]);
-      if(v.length>1) sl.addText(`驗證最後完成：${v[0][0]} ${md(v[0][1])}\n${v[1][0]} ${md(v[1][1])} 較早完成`,{x:Math.min(px(v[0][1])+0.25,X0+W-3.7),y:y0+1.1,w:3.7,h:0.55,fontFace:FONT,fontSize:12,bold:true,color:'C8102E',margin:0,isTextBox:true});
+      if(v.length>1) sl.addText(`驗證最後完成：${v[0][0]} ${md(v[0][1])}\n${v[1][0]} ${md(v[1][1])} 較早完成`,{x:Math.min(px(v[0][1])+0.25,X0+W-3.7),y:y0+1.9,w:3.7,h:0.5,fontFace:FONT,fontSize:12,bold:true,color:'C8102E',margin:0,isTextBox:true});
       notes.push(`${L.name}：${md(L.first)} 發案` + (L.needle?`，針具購買 ${md(L.needle.f)} 完成`:'') + (L.batch?`，三批試量產 ${md(L.batch.s)}～${md(L.batch.f)}`:'') + (L.ster?`，滅菌確效驗證 ${md(L.ster.s)}～${md(L.ster.f)}`:'') + (L.a3?`，三年加速老化 ${md(L.a3.s)}～${md(L.a3.f)}`:'') + (L.cert?`，${md(L.cert.s)} 起取證，${md(L.cert.f)} 領證`:'') + `；發案到領證 ${days} 天。`);
     });
     if(lanes.length>1){ const a=lanes[0], b=lanes[1]; if(a.certEnd&&b.certEnd) notes.push(`領證日相差 ${Math.abs(dayDiff(a.certEnd,b.certEnd))} 天。`) }
