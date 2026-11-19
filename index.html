@@ -587,7 +587,7 @@ table.sbt{border-collapse:separate;border-spacing:0;font-size:12.5px;font-varian
 <h2>存檔與匯出</h2>
 <ul>
 <li>「存檔」把目前案件寫回資料庫裡該案件的資料（沒有修改歷程，需要備份請用「④ 下載」）。</li>
-<li>「匯出 Excel」：用「PM工具」資料夾裡標題以「PM範本｜」開頭的記事所附的 .xlsx 當範本，只填內容、不動格式；一個案件一張工作表。欄位：預計開始日／原本預計完成＝基準（「設為基準」可更新；沒有基準的新任務先填目前計劃）；修改後預計開始／完成＝目前計劃；工作天數＝修改後完成 − 修改後開始 + 1（曆天，公式）；實際開始／完成、進度說明＝網頁輸入。圖表讀「修改後預計開始」與工作天數。</li>
+<li>「匯出 Excel」：版面以簽核版（半自動 B 版，2026-10-08 簽核）為黃金版，只填內容、不動格式；一個案件一張工作表，A3 直式、縮成一頁列印。欄位：階段｜項次｜工作項目｜研發人員｜協力單位｜預計開始日（＝目前計劃開始）｜修改後預計完成日｜工作天數（＝完成 − 開始 + 1，曆天，公式）｜實際開始｜實際完成｜進度說明與檢討（實際欄位可留空，由網頁輸入）；原本預計完成、修改後預計開始日兩欄已刪除。簽核欄依序為董事長、總經理、法規、經理，右下角為編輯人與日期。內文字體已加大，列高依列數拉高以填滿 A3。2028 年的假日表只含估算的春節（1/25～1/28）*，官方日曆公布後需補。</li>
 <li>「匯出 PLM」：鼎新 XML（MSPDI）。自動在最前面補「開發總覽」（設計開發總覽表、客戶開發委任單、開發工作細分查核表），其餘 WBS 號因此往後一號。「指定日期」的任務以「不早於該日開始」輸出、不帶前置連結；「前置任務」的任務輸出前置連結。日曆只寫週一至週五，國定假日沒有寫進 XML *，匯入後若鼎新依自己的日曆重排，日期可能和網頁不同。</li>
 </ul>
 <h2>多案總覽</h2>
@@ -1712,7 +1712,7 @@ async function doXlsx(){
     const footerXml=footer.map(r=>{let x=ser.serializeToString(r); const old=Number(r.getAttribute('r')); const nw=old+shift;
       x=x.replace(new RegExp(`(<row[^>]* r=")${old}"`),`$1${nw}"`).replace(new RegExp(`( r="[A-Z]+)${old}"`,'g'),`$1${nw}"`);
       if(old===66){ // 簽核欄：董事長、總經理、法規、經理（四位，平均分布）；原「主管」改為「經理」；列加高留手寫簽名空間
-        x=x.replace(/ ht="[\d.]+"/,' ht="70"');
+        x=x.replace(/ ht="[\d.]+"/,' ht="84"');
         const lab=(col,t)=>{x=x.replace(new RegExp(`<c r="${col}${nw}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`),`<c r="${col}${nw}" s="319" t="inlineStr"><is><t>${t}</t></is></c>`)};
         lab('N',''); x=x.replace(new RegExp(`<c r="N${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="N${nw}" s="312"/>`);
         lab('M','法規:'); lab('P','經理:'); x=x.replace(/(<c r="[AE]\d+") s="\d+"/g,'$1 s="319"');   // 董事長、總經理也用大字體
@@ -1754,20 +1754,23 @@ async function doXlsx(){
      sheet=sheet.replace(/<mergeCell ref="([^"]+)"\/>/g,(m,r)=>`<mergeCell ref="${shRefs(r)}"/>`);
      sheet=sheet.replace(/<dimension ref="A1:X(\d+)"\/>/,'<dimension ref="A1:V$1"/>');
      sheet=sheet.replace(/<cols>[\s\S]*?<\/cols>/,cs=>cs.replace(/<col min="6" max="8" /,'<col min="6" max="6" ').replace(/<col min="(\d+)" max="(\d+)"/g,(m,a,b)=>+a>=9?`<col min="${a-2}" max="${b>=16384?b:b-2}"`:m))
+       .replace(/<col min="3" max="3" width="[\d.]+"/,'<col min="3" max="3" width="40"').replace(/<col min="4" max="5" width="[\d.]+"/,'<col min="4" max="5" width="14"')
        .replace(/<col min="11" max="11" width="[\d.]+"/,'<col min="11" max="11" width="62"')      // 進度說明欄加寬（字體加大後仍放得下）
        .replace(/<col min="12" max="19" width="[\d.]+"/,'<col min="12" max="19" width="6.5"');}   // 圖表區欄寬縮小，讓整張表縮放後字體更大
     // 列印：A3、直式、縮放成一頁（寬、高各 1 頁）
+    // 標題、負責人、欄名列加高，字體放大後不被截掉
+    sheet=sheet.replace(/<row r="([1-4])"([^>]*?)>/g,(m,r,at)=>{const H={1:44,2:56,3:40,4:64}[r]; at=/ ht="/.test(at)?at.replace(/ ht="[\d.]+"/,` ht="${H}"`):at+` ht="${H}"`; if(!/customHeight/.test(at))at+=' customHeight="1"'; return `<row r="${r}"${at}>`});
     // Wpt＝範本整張表的寬度（pt），由 LibreOffice 實測校正；欄寬固定，只有列高會變
     // 上下留白：資料列高度依比例拉高，讓縮成一頁後剛好填滿 A3 直式（寬度估算＋頁面可印範圍）
-    {const Wpt=2669, PW=841.89-2*0.5118*72, PH=1190.55-2*0.3543*72;
+    {const Wpt=3150, PW=841.89-2*0.5118*72, PH=1190.55-2*0.3543*72;
      let hFix=0,hData=0; for(const m of sheet.matchAll(/<row r="(\d+)"[^>]*>/g)){const rn=+m[1], hm=m[0].match(/ ht="([\d.]+)"/), h=hm?+hm[1]:15; if(rn>=5&&rn<=lastData)hData+=h; else hFix+=h}
      const k=Math.max(1,Math.min(2.2,((PH*Wpt/PW)-hFix)/hData));
      sheet=sheet.replace(/<row r="(\d+)"([^>]*?)>/g,(m,r,at)=>{r=+r; if(r<5||r>lastData)return m; return m.replace(/ ht="([\d.]+)"/,(x,h)=>` ht="${(h*k).toFixed(2)}"`)});}
     sheet=sheet.replace(/<pageSetup [^>]*?\/>/,m=>m.replace(/ scale="\d+"/,'').replace(/ fitToWidth="\d+"/,'').replace(/ fitToHeight="\d+"/,'').replace('<pageSetup ','<pageSetup fitToWidth="1" fitToHeight="1" '));
     {let st2=await zip.file('xl/styles.xml').async('string');   // 新增簽核欄用的大字體（26pt 粗體）與儲存格樣式 319
      const nf=+st2.match(/<fonts count="(\d+)"/)[1], nx=+st2.match(/<cellXfs count="(\d+)"/)[1];
-     st2=st2.replace(/<fonts[\s\S]*?<\/fonts>/,fs=>fs.replace(/<sz val="([\d.]+)"\/>/g,(m,v)=>`<sz val="${Math.round(v*1.3*2)/2}"/>`));   // 內文字體整體加大 30%
-     st2=st2.replace(/<fonts count="\d+"/,`<fonts count="${nf+1}"`).replace('</fonts>','<font><b/><sz val="26"/><color theme="1"/><name val="微軟正黑體"/><family val="2"/><charset val="136"/></font></fonts>')
+     st2=st2.replace(/<fonts[\s\S]*?<\/fonts>/,fs=>fs.replace(/<sz val="([\d.]+)"\/>/g,(m,v)=>`<sz val="${Math.round(v*1.5*2)/2}"/>`));   // 內文字體整體加大 50%
+     st2=st2.replace(/<fonts count="\d+"/,`<fonts count="${nf+1}"`).replace('</fonts>','<font><b/><sz val="36"/><color theme="1"/><name val="微軟正黑體"/><family val="2"/><charset val="136"/></font></fonts>')
             .replace(/<cellXfs count="\d+"/,`<cellXfs count="${nx+1}"`).replace('</cellXfs>',`<xf numFmtId="0" fontId="${nf}" fillId="0" borderId="0" xfId="16" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf></cellXfs>`);
      if(nx!==319)throw new Error('範本樣式數量不是 319（'+nx+'），簽核欄字體樣式編號需調整');
      zip.file('xl/styles.xml',st2)}
