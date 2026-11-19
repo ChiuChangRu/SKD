@@ -1711,9 +1711,8 @@ async function doXlsx(){
     // 頁尾列往下移
     const footerXml=footer.map(r=>{let x=ser.serializeToString(r); const old=Number(r.getAttribute('r')); const nw=old+shift;
       x=x.replace(new RegExp(`(<row[^>]* r=")${old}"`),`$1${nw}"`).replace(new RegExp(`( r="[A-Z]+)${old}"`,'g'),`$1${nw}"`);
-      if(old===66){ // 簽核欄
-        x=x.replace(/ ht="[\d.]+"/,' ht="70"').replace(/(<c r="[A-Z]+\d+" s="(?:303|305|312)")/g,m=>m);   // 簽核列加高，留手寫簽名空間
-       ：董事長、總經理、法規、經理（四位，平均分布）；原「主管」改為「經理」
+      if(old===66){ // 簽核欄：董事長、總經理、法規、經理（四位，平均分布）；原「主管」改為「經理」；列加高留手寫簽名空間
+        x=x.replace(/ ht="[\d.]+"/,' ht="70"');
         const lab=(col,t)=>{x=x.replace(new RegExp(`<c r="${col}${nw}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`),`<c r="${col}${nw}" s="312" t="inlineStr"><is><t>${t}</t></is></c>`)};
         lab('N',''); x=x.replace(new RegExp(`<c r="N${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="N${nw}" s="312"/>`);
         lab('M','法規:'); lab('P','經理:'); lab('Q','');x=x.replace(new RegExp(`<c r="Q${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="Q${nw}" s="312"/>`)}
