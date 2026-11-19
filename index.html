@@ -613,7 +613,7 @@ const CASES={}; let ENTRIES=[];
 const PM_FOLDER='PM工具', PM_PREFIX='PM資料｜', TPL_PREFIX='PM範本｜';
 
 // ===== 工作日：週末＋政府辦公日曆（國定假日、補假；補班日算工作天）=====
-const HOLIDAYS=new Set(["2026-01-01","2026-02-16","2026-02-17","2026-02-18","2026-02-19","2026-02-20","2026-02-27","2026-04-03","2026-04-06","2026-05-01","2026-06-19","2026-09-25","2026-09-28","2026-10-09","2026-10-26","2026-12-25","2027-01-01","2027-02-04","2027-02-05","2027-02-08","2027-02-09","2027-02-10","2027-03-01","2027-04-05","2027-04-06","2027-04-30","2027-06-09","2027-09-15","2027-09-28","2027-10-11","2027-10-25","2027-12-24","2027-12-31"]);
+const HOLIDAYS=new Set(["2026-01-01","2026-02-16","2026-02-17","2026-02-18","2026-02-19","2026-02-20","2026-02-27","2026-04-03","2026-04-06","2026-05-01","2026-06-19","2026-09-25","2026-09-28","2026-10-09","2026-10-26","2026-12-25","2027-01-01","2027-02-04","2027-02-05","2027-02-08","2027-02-09","2027-02-10","2027-03-01","2027-04-05","2027-04-06","2027-04-30","2027-06-09","2027-09-15","2027-09-28","2027-10-11","2027-10-25","2027-12-24","2027-12-31","2028-01-25","2028-01-26","2028-01-27","2028-01-28"]);
 const MAKEUP=new Set([]); // 補班日（週末上班）；2026、2027 年無
 const pd=s=>{const [y,m,d]=String(s).split('-').map(Number);return new Date(Date.UTC(y,m-1,d))};
 const fd=d=>d?d.toISOString().slice(0,10):'';
@@ -1696,7 +1696,8 @@ async function doXlsx(){
         const no=r.no||''; if(/^\d+$/.test(no))num('B',no); else str('B',no);
         str('C',r.name); str('D',r.rd); str('E',r.co);
         if(r.sm==='xls'){date('F',r.F); date('G',r.G); date('H',r.H); date('I',r.I); num('J',r.J)} else {
-        const noBase=!r.F&&!r.G; date('F',noBase?r.s:r.F); date('G',noBase?r.f:r.G);
+        // 套黃金版欄位：預計開始日（F）＝目前計劃開始；G（原本預計完成）、H（修改後預計開始日）隱藏不印
+        cell('F',`<f>H${rn}</f><v>${r.s?serial(r.s):''}</v>`); cell('G');
         {const fm=xlF(r,rn); if(fm){cell('H',`<f>${xmlEsc(fm.H)}</f><v>${r.s?serial(r.s):''}</v>`); cell('I',`<f>${xmlEsc(fm.I)}</f><v>${r.f?serial(r.f):''}</v>`)} else {date('H',r.s); date('I',r.f)}}
         cell('J',`<f>I${rn}-H${rn}+1</f><v>${r.s&&r.f?cdBetween(r.s,r.f):''}</v>`);}
         date('K',r.K); date('L',r.L); str('M',r.M);
@@ -1734,6 +1735,8 @@ async function doXlsx(){
     sheet=sheet.replace(/<mergeCells[\s\S]*?<\/mergeCells>/,`<mergeCells count="${merges.length}">${merges.map(m=>`<mergeCell ref="${m}"/>`).join('')}</mergeCells>`);
     sheet=sheet.replace(/<dimension ref="[^"]*"\/>/,`<dimension ref="A1:X${68+shift}"/>`);
     sheet=sheet.replace(/(<\/mergeCells>(?:<phoneticPr[^>]*\/>)?)/,`$1<conditionalFormatting sqref="J5:J${lastData}"><cfRule type="expression" dxfId="10" priority="1"><formula>$I5&lt;1</formula></cfRule></conditionalFormatting>`);
+    // 黃金版（簽核版 B 版）欄位：隱藏 G（原本預計完成）、H（修改後預計開始日），版面＝預計開始日｜修改後預計完成日｜工作天數｜實際開始｜實際完成｜進度說明與檢討
+    sheet=sheet.replace(/<col min="6" max="8" width="([\d.]+)" style="(\d+)" customWidth="1"\/>/,'<col min="6" max="6" width="$1" style="$2" customWidth="1"/><col min="7" max="8" width="$1" style="$2" hidden="1" customWidth="1"/>');
     zip.file(P,sheet);
     // 工作表名稱
     const name=sheetSafe(META.name);
@@ -1742,11 +1745,11 @@ async function doXlsx(){
       zip.file(pth,x)}
     // 圖表：範圍改成新列數、開始欄改讀 H（修改後預計開始）、快取值同步、座標軸範圍
     const CP='xl/charts/chart1.xml'; let ch=await zip.file(CP).async('string');
-    const SC=rows.some(r=>r.sm==='xls'&&!r.H)?'F':'H';   // Excel 原樣（鎖定）的案件沒有「修改後預計開始」→圖表改讀「預計開始日」F 欄
+    const SC='F';   // Excel 原樣（鎖定）的案件沒有「修改後預計開始」→圖表改讀「預計開始日」F 欄
     const q=`'${name.replace(/'/g,"''")}'`;
     ch=ch.replace(/'[^']*'!\$C\$5:\$C\$\d+/g,`${q}!$C$5:$C$${lastData}`).replace(/'[^']*'!\$F\$5:\$F\$\d+/g,`${q}!$${SC}$5:$${SC}$${lastData}`).replace(/'[^']*'!\$J\$5:\$J\$\d+/g,`${q}!$J$5:$J$${lastData}`);
     const pts=(arr)=>`<c:ptCount val="${arr.length}"/>`+arr.map((v,i)=>v===''||v==null?'':`<c:pt idx="${i}"><c:v>${xmlEsc(v)}</c:v></c:pt>`).join('');
-    const cats=rows.map(r=>r.name), starts=rows.map(r=>SC==='F'?(r.F?serial(typeof r.F==='string'?pd(r.F):r.F):''):(r.s?serial(r.s):'')), lens=rows.map(r=>r.s&&r.f?cdBetween(r.s,r.f):'');
+    const cats=rows.map(r=>r.name), starts=rows.map(r=>{const v=r.sm==='xls'?r.F:r.s; return v?serial(typeof v==='string'?pd(v):v):''}), lens=rows.map(r=>r.s&&r.f?cdBetween(r.s,r.f):'');
     ch=ch.replace(/(<c:f>[^<]*\$C\$5:\$C\$\d+<\/c:f><c:strCache>)[\s\S]*?(<\/c:strCache>)/g,(m,a,b)=>a+pts(cats)+b);
     ch=ch.replace(new RegExp(`(<c:f>[^<]*\\$${SC}\\$5:\\$${SC}\\$\\d+<\\/c:f><c:numCache>(?:<c:formatCode>[^<]*<\\/c:formatCode>)?)[\\s\\S]*?(<\\/c:numCache>)`,'g'),(m,a,b)=>a+pts(starts)+b);
     ch=ch.replace(/(<c:f>[^<]*\$J\$5:\$J\$\d+<\/c:f><c:numCache>(?:<c:formatCode>[^<]*<\/c:formatCode>)?)[\s\S]*?(<\/c:numCache>)/g,(m,a,b)=>a+pts(lens)+b);
