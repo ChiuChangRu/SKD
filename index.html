@@ -1711,9 +1711,15 @@ async function doXlsx(){
     // 頁尾列往下移
     const footerXml=footer.map(r=>{let x=ser.serializeToString(r); const old=Number(r.getAttribute('r')); const nw=old+shift;
       x=x.replace(new RegExp(`(<row[^>]* r=")${old}"`),`$1${nw}"`).replace(new RegExp(`( r="[A-Z]+)${old}"`,'g'),`$1${nw}"`);
+      if(old===66){ // 簽核欄
+        x=x.replace(/ ht="[\d.]+"/,' ht="70"').replace(/(<c r="[A-Z]+\d+" s="(?:303|305|312)")/g,m=>m);   // 簽核列加高，留手寫簽名空間
+       ：董事長、總經理、法規、經理（四位，平均分布）；原「主管」改為「經理」
+        const lab=(col,t)=>{x=x.replace(new RegExp(`<c r="${col}${nw}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`),`<c r="${col}${nw}" s="312" t="inlineStr"><is><t>${t}</t></is></c>`)};
+        lab('N',''); x=x.replace(new RegExp(`<c r="N${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="N${nw}" s="312"/>`);
+        lab('M','法規:'); lab('P','經理:'); lab('Q','');x=x.replace(new RegExp(`<c r="Q${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="Q${nw}" s="312"/>`)}
       if(old===67)x=x.replace(/<c r="V\d+"([^>]*?)\/>/,`<c r="V${nw}"$1><v>${serial(pd(fd(new Date())))}</v></c>`);
       return x.replace(/ xmlns="[^"]*"/g,'');}).join('');
-    for(const m of ['A66:B66','E66:F66','N66:O66','V66:W66','V67:W67'])merges.push(m.replace(/\d+/g,n=>Number(n)+shift));
+    for(const m of ['A66:B66','E66:F66','M66:N66','P66:Q66','V66:W66','V67:W67'])merges.push(m.replace(/\d+/g,n=>Number(n)+shift));
     // 表頭：公司名稱＋案件名、負責人、年份標籤
     let top=keepTop.map(r=>ser.serializeToString(r).replace(/ xmlns="[^"]*"/g,'')).join('');
     const title=(META.name||'')+'-進度管制表';
@@ -1749,6 +1755,12 @@ async function doXlsx(){
      sheet=sheet.replace(/<dimension ref="A1:X(\d+)"\/>/,'<dimension ref="A1:V$1"/>');
      sheet=sheet.replace(/<cols>[\s\S]*?<\/cols>/,cs=>cs.replace(/<col min="6" max="8" /,'<col min="6" max="6" ').replace(/<col min="(\d+)" max="(\d+)"/g,(m,a,b)=>+a>=9?`<col min="${a-2}" max="${b>=16384?b:b-2}"`:m));}
     // 列印：A3、直式、縮放成一頁（寬、高各 1 頁）
+    // Wpt＝範本整張表的寬度（pt），由 LibreOffice 實測校正；欄寬固定，只有列高會變
+    // 上下留白：資料列高度依比例拉高，讓縮成一頁後剛好填滿 A3 直式（寬度估算＋頁面可印範圍）
+    {const Wpt=2124, PW=841.89-2*0.5118*72, PH=1190.55-2*0.3543*72;
+     let hFix=0,hData=0; for(const m of sheet.matchAll(/<row r="(\d+)"[^>]*>/g)){const rn=+m[1], hm=m[0].match(/ ht="([\d.]+)"/), h=hm?+hm[1]:15; if(rn>=5&&rn<=lastData)hData+=h; else hFix+=h}
+     const k=Math.max(1,Math.min(2.2,((PH*Wpt/PW)-hFix)/hData));
+     sheet=sheet.replace(/<row r="(\d+)"([^>]*?)>/g,(m,r,at)=>{r=+r; if(r<5||r>lastData)return m; return m.replace(/ ht="([\d.]+)"/,(x,h)=>` ht="${(h*k).toFixed(2)}"`)});}
     sheet=sheet.replace(/<pageSetup [^>]*?\/>/,m=>m.replace(/ scale="\d+"/,'').replace(/ fitToWidth="\d+"/,'').replace(/ fitToHeight="\d+"/,'').replace('<pageSetup ','<pageSetup fitToWidth="1" fitToHeight="1" '));
     zip.file(P,sheet);
     // 工作表名稱
