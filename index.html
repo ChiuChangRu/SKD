@@ -1713,9 +1713,10 @@ async function doXlsx(){
       x=x.replace(new RegExp(`(<row[^>]* r=")${old}"`),`$1${nw}"`).replace(new RegExp(`( r="[A-Z]+)${old}"`,'g'),`$1${nw}"`);
       if(old===66){ // 簽核欄：董事長、總經理、法規、經理（四位，平均分布）；原「主管」改為「經理」；列加高留手寫簽名空間
         x=x.replace(/ ht="[\d.]+"/,' ht="70"');
-        const lab=(col,t)=>{x=x.replace(new RegExp(`<c r="${col}${nw}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`),`<c r="${col}${nw}" s="312" t="inlineStr"><is><t>${t}</t></is></c>`)};
+        const lab=(col,t)=>{x=x.replace(new RegExp(`<c r="${col}${nw}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`),`<c r="${col}${nw}" s="319" t="inlineStr"><is><t>${t}</t></is></c>`)};
         lab('N',''); x=x.replace(new RegExp(`<c r="N${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="N${nw}" s="312"/>`);
-        lab('M','法規:'); lab('P','經理:'); lab('Q','');x=x.replace(new RegExp(`<c r="Q${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="Q${nw}" s="312"/>`)}
+        lab('M','法規:'); lab('P','經理:'); x=x.replace(/(<c r="[AE]\d+") s="\d+"/g,'$1 s="319"');   // 董事長、總經理也用大字體
+         lab('Q','');x=x.replace(new RegExp(`<c r="Q${nw}"[^>]*>[\\s\\S]*?<\\/c>`),`<c r="Q${nw}" s="312"/>`)}
       if(old===67)x=x.replace(/<c r="V\d+"([^>]*?)\/>/,`<c r="V${nw}"$1><v>${serial(pd(fd(new Date())))}</v></c>`);
       return x.replace(/ xmlns="[^"]*"/g,'');}).join('');
     for(const m of ['A66:B66','E66:F66','M66:N66','P66:Q66','V66:W66','V67:W67'])merges.push(m.replace(/\d+/g,n=>Number(n)+shift));
@@ -1761,6 +1762,12 @@ async function doXlsx(){
      const k=Math.max(1,Math.min(2.2,((PH*Wpt/PW)-hFix)/hData));
      sheet=sheet.replace(/<row r="(\d+)"([^>]*?)>/g,(m,r,at)=>{r=+r; if(r<5||r>lastData)return m; return m.replace(/ ht="([\d.]+)"/,(x,h)=>` ht="${(h*k).toFixed(2)}"`)});}
     sheet=sheet.replace(/<pageSetup [^>]*?\/>/,m=>m.replace(/ scale="\d+"/,'').replace(/ fitToWidth="\d+"/,'').replace(/ fitToHeight="\d+"/,'').replace('<pageSetup ','<pageSetup fitToWidth="1" fitToHeight="1" '));
+    {let st2=await zip.file('xl/styles.xml').async('string');   // 新增簽核欄用的大字體（26pt 粗體）與儲存格樣式 319
+     const nf=+st2.match(/<fonts count="(\d+)"/)[1], nx=+st2.match(/<cellXfs count="(\d+)"/)[1];
+     st2=st2.replace(/<fonts count="\d+"/,`<fonts count="${nf+1}"`).replace('</fonts>','<font><b/><sz val="26"/><color theme="1"/><name val="微軟正黑體"/><family val="2"/><charset val="136"/></font></fonts>')
+            .replace(/<cellXfs count="\d+"/,`<cellXfs count="${nx+1}"`).replace('</cellXfs>',`<xf numFmtId="0" fontId="${nf}" fillId="0" borderId="0" xfId="16" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf></cellXfs>`);
+     if(nx!==319)throw new Error('範本樣式數量不是 319（'+nx+'），簽核欄字體樣式編號需調整');
+     zip.file('xl/styles.xml',st2)}
     zip.file(P,sheet);
     // 工作表名稱
     const name=sheetSafe(META.name);
