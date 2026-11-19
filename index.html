@@ -1594,10 +1594,24 @@ document.getElementById('mg').addEventListener('contextmenu',e=>{
   if(!bar)items.push('-',...editMenuItems(null));
   ctxMenu(e.clientX,e.clientY,items);
 });
+// 時程圖：按住滑鼠右鍵拖曳＝平移整張圖（左右、上下）；右鍵只點一下（沒拖）仍是原本的選單
+let PANNING=false;
+(()=>{const sc=document.getElementById('mg').parentElement; let st=null, moved=false, down=false, held=null, pass=false;
+  sc.addEventListener('mousedown',e=>{ if(e.button!==2)return; st={x:e.clientX,y:e.clientY,l:sc.scrollLeft,t:sc.scrollTop}; moved=false; down=true; held=null;
+    const mv=ev=>{ if(!(ev.buttons&2)){up(ev);return} const dx=ev.clientX-st.x, dy=ev.clientY-st.y; if(!moved&&Math.hypot(dx,dy)<5)return;
+      if(!moved){moved=true;PANNING=true;sc.style.cursor='grabbing';document.body.style.userSelect='none'} sc.scrollLeft=st.l-dx; sc.scrollTop=st.t-dy; ev.preventDefault()};
+    const up=()=>{removeEventListener('mousemove',mv);removeEventListener('mouseup',up);sc.style.cursor='';document.body.style.userSelect='';down=false; setTimeout(()=>{PANNING=false},500);
+      if(held&&!moved){const h=held; held=null; pass=true; try{h.t.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:h.x,clientY:h.y,ctrlKey:h.c,shiftKey:h.sh,view:window}))}finally{pass=false}} held=null};
+    addEventListener('mousemove',mv);addEventListener('mouseup',up)});
+  // 有些系統在「按下」就觸發選單、有些在「放開」才觸發：按著的時候先擋下，放開時若沒拖動才補開選單
+  sc.addEventListener('contextmenu',e=>{ if(pass)return;
+    if(down){e.preventDefault();e.stopImmediatePropagation();held={t:e.target,x:e.clientX,y:e.clientY,c:e.ctrlKey,sh:e.shiftKey};return}
+    if(moved){e.preventDefault();e.stopImmediatePropagation();moved=false}},true);
+})();
 // 上下捲動時自動左右跟隨：以畫面上方約 40% 的列為準，它們最早的開始日一離開畫面左半部，就平滑橫移過去
 (()=>{const sc=document.getElementById('mg').parentElement; let lastTop=sc.scrollTop, target=null, raf=0, tm=0;
   sc.addEventListener('scroll',()=>{if(sc.scrollTop===lastTop)return; lastTop=sc.scrollTop; clearTimeout(tm); tm=setTimeout(aim,150)},{passive:true});   // 捲動停下約 0.15 秒後才橫移，捲動中不拉扯
-  function aim(){ if(!GAX||ZOOMV<=0||DRAG||!AUTOF)return;
+  function aim(){ if(!GAX||ZOOMV<=0||DRAG||!AUTOF||PANNING)return;
     const g=document.getElementById('mg'), gn=parseFloat(getComputedStyle(g).getPropertyValue('--gn'))||300;
     const head=g.querySelector('.g-head'), hh=head?head.offsetHeight:40;
     const y0=sc.scrollTop+hh, y1=y0+(sc.clientHeight-hh)*0.4;
