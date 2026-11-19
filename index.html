@@ -1748,6 +1748,8 @@ async function doXlsx(){
      sheet=sheet.replace(/<mergeCell ref="([^"]+)"\/>/g,(m,r)=>`<mergeCell ref="${shRefs(r)}"/>`);
      sheet=sheet.replace(/<dimension ref="A1:X(\d+)"\/>/,'<dimension ref="A1:V$1"/>');
      sheet=sheet.replace(/<cols>[\s\S]*?<\/cols>/,cs=>cs.replace(/<col min="6" max="8" /,'<col min="6" max="6" ').replace(/<col min="(\d+)" max="(\d+)"/g,(m,a,b)=>+a>=9?`<col min="${a-2}" max="${b>=16384?b:b-2}"`:m));}
+    // 列印：A3、直式、縮放成一頁（寬、高各 1 頁）
+    sheet=sheet.replace(/<pageSetup [^>]*?\/>/,m=>m.replace(/ scale="\d+"/,'').replace(/ fitToWidth="\d+"/,'').replace(/ fitToHeight="\d+"/,'').replace('<pageSetup ','<pageSetup fitToWidth="1" fitToHeight="1" '));
     zip.file(P,sheet);
     // 工作表名稱
     const name=sheetSafe(META.name);
