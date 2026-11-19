@@ -1823,57 +1823,56 @@ async function doPptx(){
       const ds=c.json.meta&&c.json.meta.default_start, first=ds?pd(ds):new Date(Math.min(...leaf.map(r=>+r.s)));   // 發案日＝案件開始日（有些任務如 DHF 會往前排，不能拿最早的任務日）
       return {name:cr.name||'', tag:cr.tag, by, first, needle:by['14-1'], batch:by['27'], ster:by['29'], a1:by['34'], a3:by['35'], cert:by['39'], leaf};
     }).sort((a,b)=>a.first-b.first);
-    // 座標軸：從「今天所在月」（不早於最早案件的開始月）到最晚完成日的下個月
-    const monthStart=d=>new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1));
-    const allMin=new Date(Math.min(...lanes.map(l=>+l.first))), allMax=new Date(Math.max(...lanes.flatMap(l=>l.leaf.map(r=>+r.f))));
-    const now=new Date(); const ax0=new Date(Math.max(+monthStart(new Date(Date.UTC(now.getFullYear(),now.getMonth(),1))),+monthStart(allMin)));
-    const ax1=new Date(Date.UTC(allMax.getUTCFullYear(),allMax.getUTCMonth()+1,1));
-    const X0=2.4, W=10.4, span=ax1-ax0;
-    const px=d=>X0+Math.max(0,Math.min(1,(d-ax0)/span))*W;
-    const md=d=>`${d.getUTCMonth()+1}/${d.getUTCDate()}${d.getUTCFullYear()>=2028?'*':''}`;
+    // 座標軸：兩案各自從「發案日」起算（發案後第 N 個月），才能直接比長短
     const dayDiff=(a,b)=>Math.round((b-a)/864e5);
+    const MON=30.4375, X0=2.4, W=10.4;
+    const laneEnd=l=>new Date(Math.max(...l.leaf.map(r=>+r.f)));
+    const totalM=Math.max(3,Math.ceil(Math.ceil(Math.max(...lanes.map(l=>dayDiff(l.first,laneEnd(l))))/MON)/3)*3);
+    const px=(d,L)=>X0+Math.max(0,Math.min(1,dayDiff(L.first,d)/MON/totalM))*W;
+    const md=d=>`${d.getUTCMonth()+1}/${d.getUTCDate()}${d.getUTCFullYear()>=2028?'*':''}`;
     const pres=new PptxGenJS(); pres.layout='LAYOUT_WIDE'; pres.title='時程總覽';
     const sl=pres.addSlide(); sl.background={color:'FFFFFF'};
     const FONT='Noto Sans TC', MONO='IBM Plex Mono';
     sl.addText('時程總覽：'+lanes.map(l=>l.name||'案件').join(' 與 '),{x:0.5,y:0.25,w:12.3,h:0.6,fontFace:FONT,fontSize:28,bold:true,color:'111111',margin:0,isTextBox:true});
     // 座標軸
     const AY=1.15; sl.addShape(pres.ShapeType.line,{x:0.5,y:AY+0.62,w:12.3,h:0,line:{color:'111111',width:1.5}});
-    sl.addText('年／月',{x:0.5,y:AY+0.3,w:1.2,h:0.3,fontFace:FONT,fontSize:11,color:'444444',margin:0,isTextBox:true});
-    const ticks=[new Date(ax0)]; for(let d=new Date(Date.UTC(ax0.getUTCFullYear(),ax0.getUTCMonth()+1,1)); d<ax1; d=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1))) if([1,4,7,10].includes(d.getUTCMonth()+1)&&(d-ax0)>40*864e5) ticks.push(new Date(d));
-    for(const d of ticks){
-      const x=px(d), m=d.getUTCMonth()+1;
-      sl.addText(m+'月',{x:x-0.05,y:AY+0.33,w:0.9,h:0.28,fontFace:MONO,fontSize:11,color:'444444',margin:0,isTextBox:true});
-      if(m===1||+d===+ax0) sl.addText(String(d.getUTCFullYear()),{x:x-0.05,y:AY+0.02,w:0.9,h:0.3,fontFace:MONO,fontSize:13,bold:true,color:'111111',margin:0,isTextBox:true});
-      if(m===1&&+d>+ax0) sl.addShape(pres.ShapeType.line,{x:x,y:AY+0.62,w:0,h:0.2+lanes.length*2.4,line:{color:'BBBBBB',width:0.75,dashType:'dash'}});
+    sl.addText('發案後（月）',{x:0.5,y:AY+0.3,w:1.8,h:0.3,fontFace:FONT,fontSize:11,color:'444444',margin:0,isTextBox:true});
+    for(let m=0;m<=totalM;m+=3){
+      const x=X0+m/totalM*W;
+      sl.addText(String(m),{x:x-0.3,y:AY+0.33,w:0.6,h:0.28,fontFace:MONO,fontSize:11,color:'444444',align:'center',margin:0,isTextBox:true});
+      if(m>0) sl.addShape(pres.ShapeType.line,{x:x,y:AY+0.62,w:0,h:0.45+lanes.length*2.3,line:{color:m%12===0?'888888':'CCCCCC',width:0.75,dashType:'dash'}});
     }
     const COL=['111111','1F4E79','2E7D32'];
     const notes=[]; let anyStar=false;
     lanes.forEach((L,i)=>{
-      const y0=AY+0.8+i*2.4, c=COL[i%COL.length];
+      const y0=AY+1.05+i*2.3, c=COL[i%COL.length];
       sl.addText(L.name||'案件',{x:0.5,y:y0+0.5,w:1.85,h:0.7,fontFace:FONT,fontSize:18,bold:true,color:'111111',margin:0,valign:'middle',isTextBox:true});
-      const certEnd=L.cert?L.cert.f:allMax, days=dayDiff(L.first,certEnd);
+      const certEnd=L.cert?L.cert.f:laneEnd(L), days=dayDiff(L.first,certEnd);
       sl.addText(`發案(${L.first.getUTCFullYear()}/${L.first.getUTCMonth()+1})→領證(${certEnd.getUTCFullYear()}/${certEnd.getUTCMonth()+1})\n${days} 天`,{x:0.5,y:y0+1.25,w:1.85,h:0.7,fontFace:MONO,fontSize:11,bold:true,color:'C8102E',margin:0,isTextBox:true});
       L.days=days; L.certEnd=certEnd;
-      const bar=(r,row,fill,txtColor,label)=>{ if(!r)return; const s=r.s<ax0?ax0:r.s, x=px(s), w=Math.max(0.12,px(r.f)-x);
+      const bar=(r,row,fill,txtColor,label)=>{ if(!r)return; const x=px(r.s,L), w=Math.max(0.12,px(r.f,L)-x);
         sl.addShape(pres.ShapeType.rect,{x,y:y0+0.55+row*0.5,w,h:0.45,fill:{color:fill},line:{color:fill==='FFFFFF'?c:fill,width:1}});
-        if(label&&w>0.62) sl.addText(label,{x,y:y0+0.55+row*0.5,w,h:0.45,wrap:false,fontFace:FONT,fontSize:12,bold:true,color:txtColor,align:'center',valign:'middle',margin:0,fit:'shrink',isTextBox:true}) };
+        if(label&&w>0.4) sl.addText(label,{x,y:y0+0.55+row*0.5,w,h:0.45,wrap:false,fontFace:FONT,fontSize:w<0.62?10:12,bold:true,color:txtColor,align:'center',valign:'middle',margin:0,fit:'shrink',isTextBox:true}) };
       bar(L.needle,0,c,'FFFFFF','針具購買'); bar(L.batch,0,c,'FFFFFF','三批'); bar(L.ster,0,c,'FFFFFF','滅菌');
+      if(L.needle&&L.needle.s>L.first) bar({s:L.first,f:L.needle.s},0,'EDEDED','555555','前期設計開發');
       bar(L.a3,1,'D9E2F3','111111','3年老化');
       if(L.cert){ const noQms=/查驗登記|免/.test(L.cert.name||''); bar({s:(L.by['36']||L.cert).s,f:L.cert.f},0,noQms?'FFFFFF':'D9D9D9','111111',noQms?'送件→領證':'QMS 取證') }
       // 里程碑箭頭（紅，月／日）
       const ms=[[L.needle&&L.needle.f],[L.batch&&L.batch.f],[L.a3&&L.a3.f],[L.cert&&L.cert.f]].map(a=>a[0]).filter(Boolean);
-      ms.forEach(d=>{ const x=px(d); anyStar=anyStar||d.getUTCFullYear()>=2028;
+      let prevX=-9, lvl=0;
+      ms.sort((a,b)=>a-b).forEach(d=>{ const x=px(d,L); anyStar=anyStar||d.getUTCFullYear()>=2028;
+        lvl=(x-prevX<0.85)?1-lvl:0; prevX=x;
         sl.addShape(pres.ShapeType.triangle,{x:x-0.08,y:y0+0.33,w:0.16,h:0.18,fill:{color:'C8102E'},line:{color:'C8102E',width:0.5},flipV:true});
-        sl.addText(md(d),{x:x-0.5,y:y0+0.06,w:1,h:0.26,fontFace:MONO,fontSize:11,bold:true,color:'C8102E',align:'center',margin:0,isTextBox:true}) });
-      if(L.a1){ const d=L.a1.f; sl.addText('1年老化 '+md(d),{x:px(d)-0.9,y:y0+1.58,w:1.8,h:0.26,fontFace:MONO,fontSize:11,bold:true,color:'C8102E',align:'center',margin:0,isTextBox:true}); anyStar=anyStar||d.getUTCFullYear()>=2028 }
+        sl.addText(md(d),{x:x-0.5,y:y0+0.06-lvl*0.24,w:1,h:0.26,fontFace:MONO,fontSize:11,bold:true,color:'C8102E',align:'center',margin:0,isTextBox:true}) });
+      if(L.a1){ const d=L.a1.f; sl.addText('1年老化 '+md(d),{x:px(d,L)-0.9,y:y0+1.58,w:1.8,h:0.26,fontFace:MONO,fontSize:11,bold:true,color:'C8102E',align:'center',margin:0,isTextBox:true}); anyStar=anyStar||d.getUTCFullYear()>=2028 }
       // 驗證最後完成
       const v=[L.ster&&['滅菌確效',L.ster.f],L.a1&&['1年老化',L.a1.f],L.a3&&['3年老化',L.a3.f]].filter(Boolean).sort((a,b)=>b[1]-a[1]);
-      if(v.length>1) sl.addText(`驗證最後完成：${v[0][0]} ${md(v[0][1])}\n${v[1][0]} ${md(v[1][1])} 較早完成`,{x:Math.min(px(v[0][1])+0.25,X0+W-3.7),y:y0+1.9,w:3.7,h:0.5,fontFace:FONT,fontSize:12,bold:true,color:'C8102E',margin:0,isTextBox:true});
+      if(v.length>1) sl.addText(`驗證最後完成：${v[0][0]} ${md(v[0][1])}\n${v[1][0]} ${md(v[1][1])} 較早完成`,{x:Math.min(px(v[0][1],L)+0.25,X0+W-3.7),y:y0+1.9,w:3.7,h:0.5,fontFace:FONT,fontSize:12,bold:true,color:'C8102E',margin:0,isTextBox:true});
       notes.push(`${L.name}：${md(L.first)} 發案` + (L.needle?`，針具購買 ${md(L.needle.f)} 完成`:'') + (L.batch?`，三批試量產 ${md(L.batch.s)}～${md(L.batch.f)}`:'') + (L.ster?`，滅菌確效驗證 ${md(L.ster.s)}～${md(L.ster.f)}`:'') + (L.a3?`，三年加速老化 ${md(L.a3.s)}～${md(L.a3.f)}`:'') + (L.cert?`，${md(L.cert.s)} 起取證，${md(L.cert.f)} 領證`:'') + `；發案到領證 ${days} 天。`);
     });
     if(lanes.length>1){ const a=lanes[0], b=lanes[1]; if(a.certEnd&&b.certEnd) notes.push(`領證日相差 ${Math.abs(dayDiff(a.certEnd,b.certEnd))} 天。`) }
     if(anyStar) notes.push('標 * 的 2028 年日期為推算（國定假日只扣估算的春節）。');
-    sl.addText('標 * 為推算；紅色箭頭為里程碑完成日（月／日）',{x:0.5,y:7.0,w:8,h:0.3,fontFace:FONT,fontSize:11,color:'666666',margin:0,isTextBox:true});
+    sl.addText('橫軸為發案後月數（兩案各自從發案日起算）；標 * 為推算；紅色箭頭為里程碑完成日（月／日）',{x:0.5,y:7.1,w:8,h:0.3,fontFace:FONT,fontSize:11,color:'666666',margin:0,isTextBox:true});
     sl.addNotes(notes.join('\n'));
     await pres.writeFile({fileName:`時程總覽_${(META.name||'案件').replace(/[\\/:*?"<>|]/g,'_')}_${fd(new Date())}.pptx`});
     st.textContent='已匯出 PPT';
