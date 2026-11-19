@@ -1666,14 +1666,14 @@ async function doXlsx(){
     const wdF=(x,n)=>`WORKDAY(${x},${n}${HOLP})`;
     const dtF=d=>{d=typeof d==='string'?pd(d):d; return `DATE(${d.getUTCFullYear()},${d.getUTCMonth()+1},${d.getUTCDate()})`};
     const nxF=d=>wdF(`${dtF(d)}-1`,1);                                  // nextWd：該日若非工作日則順延到下一個工作日
-    const refS=p=>p.sm==='xls'||!rowNum[p.k]?dtF(p.s):`H${rowNum[p.k]}`, refF=p=>p.sm==='xls'||!rowNum[p.k]?dtF(p.f):`I${rowNum[p.k]}`;
+    const refS=p=>p.sm==='xls'||!rowNum[p.k]?dtF(p.s):`F${rowNum[p.k]}`, refF=p=>p.sm==='xls'||!rowNum[p.k]?dtF(p.f):`I${rowNum[p.k]}`;
     const rangeF=(col,kids)=>{const ns=kids.map(x=>rowNum[x.k]).filter(Boolean).sort((a,b)=>a-b); const o=[]; let i=0;
       while(i<ns.length){let j=i; while(j+1<ns.length&&ns[j+1]===ns[j]+1)j++; o.push(j>i?`${col}${ns[i]}:${col}${ns[j]}`:`${col}${ns[i]}`); i=j+1} return o.join(',')};
     const startStr=document.getElementById('start').value;
     function xlF(r,rn){
       if(r.sm==='xls'||!r.s||!r.f)return null;
       if(r.t==='sum'){const kids=rows.filter(x=>x.par===r.k&&x.s&&rowNum[x.k]); if(!kids.length)return null;
-        return {H:`MIN(${rangeF('H',kids)})`,I:`MAX(${rangeF('I',kids)})`}}
+        return {H:`MIN(${rangeF('F',kids)})`,I:`MAX(${rangeF('I',kids)})`}}
       let es;
       if(r.sm==='fix')es=nxF(r.fix||nextWd(pd(startStr)));
       else{const parts=[];
@@ -1681,7 +1681,7 @@ async function doXlsx(){
           const base=t==='SS'?refS(p):wdF(refF(p),1); parts.push(l?wdF(base,l):base)}
         if(r.snet)parts.push(nxF(r.snet));
         es=!parts.length?nxF(startStr):(parts.length>1?`MAX(${parts.join(',')})`:parts[0])}
-      return {H:es,I:wdF(`H${rn}`,Math.max(r.dur||1,1)-1)}}
+      return {H:es,I:wdF(`F${rn}`,Math.max(r.dur||1,1)-1)}}
     for(const ph of phOrder){
       const list=byPh[ph]||[]; if(!list.length)continue; const startRow=rn;
       list.forEach((r,i)=>{
@@ -1695,11 +1695,11 @@ async function doXlsx(){
         str('A',i===0?(D.find(p=>p.k===ph)||{}).k:'');
         const no=r.no||''; if(/^\d+$/.test(no))num('B',no); else str('B',no);
         str('C',r.name); str('D',r.rd); str('E',r.co);
-        if(r.sm==='xls'){date('F',r.F); date('G',r.G); date('H',r.H); date('I',r.I); num('J',r.J)} else {
-        // 套黃金版欄位：預計開始日（F）＝目前計劃開始；G（原本預計完成）、H（修改後預計開始日）隱藏不印
-        cell('F',`<f>H${rn}</f><v>${r.s?serial(r.s):''}</v>`); cell('G');
-        {const fm=xlF(r,rn); if(fm){cell('H',`<f>${xmlEsc(fm.H)}</f><v>${r.s?serial(r.s):''}</v>`); cell('I',`<f>${xmlEsc(fm.I)}</f><v>${r.f?serial(r.f):''}</v>`)} else {date('H',r.s); date('I',r.f)}}
-        cell('J',`<f>I${rn}-H${rn}+1</f><v>${r.s&&r.f?cdBetween(r.s,r.f):''}</v>`);}
+        // 黃金版欄位：F＝預計開始日（目前計劃）、I＝修改後預計完成日、J＝工作天數；G（原本預計完成）、H（修改後預計開始日）先留空，最後整欄刪除
+        if(r.sm==='xls'){date('F',r.F); cell('G'); cell('H'); date('I',r.I); num('J',r.J)} else {
+        {const fm=xlF(r,rn); if(fm){cell('F',`<f>${xmlEsc(fm.H)}</f><v>${r.s?serial(r.s):''}</v>`); cell('I',`<f>${xmlEsc(fm.I)}</f><v>${r.f?serial(r.f):''}</v>`)} else {date('F',r.s); date('I',r.f)}}
+        cell('G'); cell('H');
+        cell('J',`<f>I${rn}-F${rn}+1</f><v>${r.s&&r.f?cdBetween(r.s,r.f):''}</v>`);}
         date('K',r.K); date('L',r.L); str('M',r.M);
         for(const col of Object.keys(st.cells)) if(!'ABCDEFGHIJKLM'.includes(col)) cell(col);
         const attrs=st.attrs.map(([k,v])=>` ${k}="${v}"`).join('');
@@ -1734,25 +1734,36 @@ async function doXlsx(){
     let sheet=sx.replace(/<sheetData>[\s\S]*<\/sheetData>/,`<sheetData>${top}${out.join('')}${footerXml}</sheetData>`);
     sheet=sheet.replace(/<mergeCells[\s\S]*?<\/mergeCells>/,`<mergeCells count="${merges.length}">${merges.map(m=>`<mergeCell ref="${m}"/>`).join('')}</mergeCells>`);
     sheet=sheet.replace(/<dimension ref="[^"]*"\/>/,`<dimension ref="A1:X${68+shift}"/>`);
-    sheet=sheet.replace(/(<\/mergeCells>(?:<phoneticPr[^>]*\/>)?)/,`$1<conditionalFormatting sqref="J5:J${lastData}"><cfRule type="expression" dxfId="10" priority="1"><formula>$I5&lt;1</formula></cfRule></conditionalFormatting>`);
-    // 黃金版（簽核版 B 版）欄位：隱藏 G（原本預計完成）、H（修改後預計開始日），版面＝預計開始日｜修改後預計完成日｜工作天數｜實際開始｜實際完成｜進度說明與檢討
-    sheet=sheet.replace(/<col min="6" max="8" width="([\d.]+)" style="(\d+)" customWidth="1"\/>/,'<col min="6" max="6" width="$1" style="$2" customWidth="1"/><col min="7" max="8" width="$1" style="$2" hidden="1" customWidth="1"/>');
+    sheet=sheet.replace(/(<\/mergeCells>(?:<phoneticPr[^>]*\/>)?)/,`$1<conditionalFormatting sqref="H5:H${lastData}"><cfRule type="expression" dxfId="10" priority="1"><formula>$G5&lt;1</formula></cfRule></conditionalFormatting>`);
+    // 黃金版（簽核版 B 版）欄位：刪除 G（原本預計完成）、H（修改後預計開始日），I 以後的欄往左移 2 欄
+    {const cN=t=>[...t].reduce((x,c)=>x*26+c.charCodeAt(0)-64,0), cL=n=>{let t='';while(n>0){t=String.fromCharCode(65+(n-1)%26)+t;n=Math.floor((n-1)/26)}return t};
+     const sh=c=>{const n=cN(c);return n>=9?cL(n-2):c};
+     const shRefs=t=>t.replace(/(\$?)([A-Z]{1,2})(\$?)(\d+)/g,(m,d1,c,d2,r)=>d1+sh(c)+d2+r);
+     let sd=sheet.match(/<sheetData>[\s\S]*<\/sheetData>/)[0];
+     sd=sd.replace(/<c r="[GH]\d+"(?:[^>]*?\/>|[^>]*?>[\s\S]*?<\/c>)/g,'')
+          .replace(/<c r="([A-Z]+)(\d+)"/g,(m,c,r)=>`<c r="${sh(c)}${r}"`)
+          .replace(/<f>([\s\S]*?)<\/f>/g,(m,f)=>`<f>${shRefs(f)}</f>`)
+          .replace(/ spans="[^"]*"/g,'');
+     sheet=sheet.replace(/<sheetData>[\s\S]*<\/sheetData>/,()=>sd);
+     sheet=sheet.replace(/<mergeCell ref="([^"]+)"\/>/g,(m,r)=>`<mergeCell ref="${shRefs(r)}"/>`);
+     sheet=sheet.replace(/<dimension ref="A1:X(\d+)"\/>/,'<dimension ref="A1:V$1"/>');
+     sheet=sheet.replace(/<cols>[\s\S]*?<\/cols>/,cs=>cs.replace(/<col min="6" max="8" /,'<col min="6" max="6" ').replace(/<col min="(\d+)" max="(\d+)"/g,(m,a,b)=>+a>=9?`<col min="${a-2}" max="${b>=16384?b:b-2}"`:m));}
     zip.file(P,sheet);
     // 工作表名稱
     const name=sheetSafe(META.name);
-    for(const pth of ['xl/workbook.xml','docProps/app.xml']){let x=await zip.file(pth).async('string');x=x.replace(/範本/g,xmlEsc(name)).replace(/\$A\$1:\$W\$\d+/,`$A$1:$W$${67+shift}`);
+    for(const pth of ['xl/workbook.xml','docProps/app.xml']){let x=await zip.file(pth).async('string');x=x.replace(/範本/g,xmlEsc(name)).replace(/\$A\$1:\$W\$\d+/,`$A$1:$U$${67+shift}`);
       if(pth==='xl/workbook.xml'&&!calWk(META)){const hv=[...HOLIDAYS].sort().map(h=>serial(pd(h))).join(','); x=x.replace('</definedNames>',`<definedName name="Hol">{${hv}}</definedName></definedNames>`)}
       zip.file(pth,x)}
     // 圖表：範圍改成新列數、開始欄改讀 H（修改後預計開始）、快取值同步、座標軸範圍
     const CP='xl/charts/chart1.xml'; let ch=await zip.file(CP).async('string');
     const SC='F';   // Excel 原樣（鎖定）的案件沒有「修改後預計開始」→圖表改讀「預計開始日」F 欄
     const q=`'${name.replace(/'/g,"''")}'`;
-    ch=ch.replace(/'[^']*'!\$C\$5:\$C\$\d+/g,`${q}!$C$5:$C$${lastData}`).replace(/'[^']*'!\$F\$5:\$F\$\d+/g,`${q}!$${SC}$5:$${SC}$${lastData}`).replace(/'[^']*'!\$J\$5:\$J\$\d+/g,`${q}!$J$5:$J$${lastData}`);
+    ch=ch.replace(/'[^']*'!\$C\$5:\$C\$\d+/g,`${q}!$C$5:$C$${lastData}`).replace(/'[^']*'!\$F\$5:\$F\$\d+/g,`${q}!$${SC}$5:$${SC}$${lastData}`).replace(/'[^']*'!\$J\$5:\$J\$\d+/g,`${q}!$H$5:$H$${lastData}`);
     const pts=(arr)=>`<c:ptCount val="${arr.length}"/>`+arr.map((v,i)=>v===''||v==null?'':`<c:pt idx="${i}"><c:v>${xmlEsc(v)}</c:v></c:pt>`).join('');
     const cats=rows.map(r=>r.name), starts=rows.map(r=>{const v=r.sm==='xls'?r.F:r.s; return v?serial(typeof v==='string'?pd(v):v):''}), lens=rows.map(r=>r.s&&r.f?cdBetween(r.s,r.f):'');
     ch=ch.replace(/(<c:f>[^<]*\$C\$5:\$C\$\d+<\/c:f><c:strCache>)[\s\S]*?(<\/c:strCache>)/g,(m,a,b)=>a+pts(cats)+b);
     ch=ch.replace(new RegExp(`(<c:f>[^<]*\\$${SC}\\$5:\\$${SC}\\$\\d+<\\/c:f><c:numCache>(?:<c:formatCode>[^<]*<\\/c:formatCode>)?)[\\s\\S]*?(<\\/c:numCache>)`,'g'),(m,a,b)=>a+pts(starts)+b);
-    ch=ch.replace(/(<c:f>[^<]*\$J\$5:\$J\$\d+<\/c:f><c:numCache>(?:<c:formatCode>[^<]*<\/c:formatCode>)?)[\s\S]*?(<\/c:numCache>)/g,(m,a,b)=>a+pts(lens)+b);
+    ch=ch.replace(/(<c:f>[^<]*\$H\$5:\$H\$\d+<\/c:f><c:numCache>(?:<c:formatCode>[^<]*<\/c:formatCode>)?)[\s\S]*?(<\/c:numCache>)/g,(m,a,b)=>a+pts(lens)+b);
     const axMin=serial(new Date(Date.UTC(minD.getUTCFullYear(),minD.getUTCMonth(),1))), axMax=serial(new Date(Date.UTC(maxD.getUTCFullYear(),maxD.getUTCMonth()+1,1)));
     ch=ch.replace(/<c:max val="[\d.]+"\/>/,`<c:max val="${axMax}"/>`).replace(/<c:min val="[\d.]+"\/>/,`<c:min val="${axMin}"/>`);
     zip.file(CP,ch);
@@ -1761,7 +1772,7 @@ async function doXlsx(){
     dr=dr.replace(/(<xdr:twoCellAnchor[^>]*>(?:(?!<\/xdr:twoCellAnchor>)[\s\S])*?<xdr:graphicFrame[\s\S]*?<\/xdr:twoCellAnchor>)/,m=>m);
     const anchors=dr.split('</xdr:twoCellAnchor>');
     for(let i=0;i<anchors.length;i++) if(/graphicFrame/.test(anchors[i])) anchors[i]=anchors[i].replace(/(<xdr:to>[\s\S]*?<xdr:row>)\d+(<\/xdr:row>)/,`$1${lastData}$2`);
-    zip.file(DP,anchors.join('</xdr:twoCellAnchor>'));
+    zip.file(DP,anchors.join('</xdr:twoCellAnchor>').replace(/<xdr:col>(\d+)<\/xdr:col>/g,(m,c)=>`<xdr:col>${+c>=8?c-2:c}</xdr:col>`));   // G、H 欄刪除後，圖表跟著左移 2 欄
     const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     download(blob,`${name}_進度管制表_${fd(new Date())}.xlsx`);
     st.textContent='已匯出 Excel';
