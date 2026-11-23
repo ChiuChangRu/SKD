@@ -1968,7 +1968,7 @@ function askNewCase(){
     const box=document.createElement('div'); box.className='xdlg';
     const tdy=new Date(); const iso=fd(tdy);
     box.innerHTML=`<div class="bx ncase"><div class="nc-h">新增案件</div>
-      <div class="nc-s">1　選模板</div><div class="nc-grid">${TPLS.map((t,i)=>`<label class="nc-card"><input type="radio" name="nctpl" value="${t.key}" ${i===0?'checked':''}><span><b>${esc(t.name)}</b>${t.draft?'<em>草稿*</em>':''}<small>${esc(t.desc)}</small></span></label>`).join('')}</div>
+      <div class="nc-s">1　選模板</div><div class="nc-grid">${TPLS.map((t,i)=>`<label class="nc-card"><input type="radio" name="nctpl" value="${t.key}" ${i===0?'checked':''}><span><b>${esc(t.name)}</b>${t.draft?'<em>草稿*</em>':''}<small>${esc(t.desc)}</small></span></label>`).join('')}<label class="nc-card"><input type="radio" name="nctpl" value="copy"><span><b>複製現有案件</b><small>整案複製，只改案件名稱；日期整案平移到下面的開始日期，其餘內容不更動。</small><select id="ncSrc" style="margin-top:4px;max-width:100%">${ENTRIES.map(e=>`<option value="${esc(String(e.id))}">${esc(String(e.title).replace(PM_PREFIX,''))}</option>`).join('')}</select></span></label></div>
       <div class="nc-s">2　基本資料</div>
       <div class="nc-f"><label>案件名稱 <input type="text" id="ncName" placeholder="例：全自動檢體針"></label><label>產品 <input type="text" id="ncProd"></label>
         <label>專案負責人 <select id="ncLead"><option value="">（先不指定）</option>${ppKnown().map(n=>`<option>${esc(n)}</option>`).join('')}</select></label>
@@ -1978,12 +1978,14 @@ function askNewCase(){
       <div class="nc-m" id="ncMsg"></div>
       <div class="nc-b"><button class="act" data-c="x" type="button">取消</button><button class="act primary" data-c="ok" type="button">建立案件</button></div></div>`;
     document.body.appendChild(box);
-    const cur=()=>TPLS.find(t=>t.key===box.querySelector('input[name=nctpl]:checked').value);
-    const sync=()=>{const t=cur(); const hasM=t.spec.some(x=>x[0]==='M'); box.querySelector('#ncMw').hidden=!hasM; box.querySelector('#ncMold').value=t.molds; box.querySelector('#ncMsg').textContent=t.draft?'草稿模板：項目與工期是推估（*），建立後請在任務表調整。':''};
-    box.onchange=e=>{if(e.target.name==='nctpl')sync()}; sync();
+    const isCopy=()=>box.querySelector('input[name=nctpl]:checked').value==='copy';
+    const cur=()=>isCopy()?{key:'copy',name:'複製現有案件',spec:[],molds:0}:TPLS.find(t=>t.key===box.querySelector('input[name=nctpl]:checked').value);
+    const srcStart=async()=>{const id=box.querySelector('#ncSrc').value; if(!id)return; try{const j=await fetchCase(id); if(isCopy()&&j.meta&&j.meta.default_start)box.querySelector('#ncStart').value=j.meta.default_start}catch{}};
+    const sync=()=>{const t=cur(); if(t.key==='copy'){box.querySelector('#ncMw').hidden=true; for(const i of ['ncProd','ncLead','ncCal'])box.querySelector('#'+i).disabled=true; box.querySelector('#ncMsg').textContent='複製：任務、人員、說明全部照舊，日期依開始日期整案平移（相差幾天就全部移幾天）。'; srcStart(); return} for(const i of ['ncProd','ncLead','ncCal'])box.querySelector('#'+i).disabled=false; const hasM=t.spec.some(x=>x[0]==='M'); box.querySelector('#ncMw').hidden=!hasM; box.querySelector('#ncMold').value=t.molds; box.querySelector('#ncMsg').textContent=t.draft?'草稿模板：項目與工期是推估（*），建立後請在任務表調整。':''};
+    box.onchange=e=>{if(e.target.name==='nctpl'||e.target.id==='ncSrc')sync()}; sync();
     box.onclick=ev=>{const a=ev.target.dataset.c; if(!a)return; if(a==='x'){box.remove();res(null);return}
       const nm=box.querySelector('#ncName').value.trim(); if(!nm){box.querySelector('#ncMsg').textContent='請輸入案件名稱';return}
-      const v={tpl:cur(),name:nm,product:box.querySelector('#ncProd').value.trim(),leader:box.querySelector('#ncLead').value,start:box.querySelector('#ncStart').value||iso,cal:box.querySelector('#ncCal').value,molds:Math.max(0,parseInt(box.querySelector('#ncMold').value,10)||0)};
+      const v={tpl:cur(),name:nm,product:box.querySelector('#ncProd').value.trim(),leader:box.querySelector('#ncLead').value,start:box.querySelector('#ncStart').value||iso,cal:box.querySelector('#ncCal').value,molds:Math.max(0,parseInt(box.querySelector('#ncMold').value,10)||0),copy:isCopy()?box.querySelector('#ncSrc').value:null};
       box.remove(); res(v)};
   });
 }
@@ -1994,6 +1996,18 @@ async function createFromTemplate(){
   try{
     st.textContent='建立中…'; const tp=v.tpl, meta0={name:v.name};
     if(ENTRIES.some(e=>e.title===PM_PREFIX+v.name)){st.textContent='';DLG.alert('已有同名案件，請換一個名稱');return}
+    if(v.copy){   // 複製現有案件：只改案件名稱，日期整案平移
+      const src=JSON.parse(JSON.stringify(await fetchCase(v.copy))); const D=Math.round((pd(v.start)-pd(src.meta.default_start))/864e5);
+      const sh=x=>/^\d{4}-\d\d-\d\d$/.test(x||'')?fd(addD(pd(x),D)):x;
+      src.meta.name=v.name; src.meta.default_start=sh(src.meta.default_start);
+      if(Array.isArray(src.meta.marks))src.meta.marks.forEach(m=>{m.d=sh(m.d)});
+      src.tasks.forEach(t=>{for(const f of ['F','I','fix'])if(t[f])t[f]=sh(t[f])});   // 實際開始／完成（K、L）是已發生的紀錄，不平移
+      const body='{"meta":'+JSON.stringify(src.meta)+',\n"tasks":[\n'+src.tasks.map(x=>JSON.stringify(x)).join(',\n')+'\n]}';
+      const folders=await api('/folders'); const fo=folders.find(x=>x.name===PM_FOLDER||String(x.name||'').endsWith(PM_FOLDER)); if(!fo)throw new Error(`找不到「${PM_FOLDER}」資料夾`);
+      const res=await pmFetch('/api/entries',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({folder_id:fo.id,title:PM_PREFIX+v.name,body,body_format:'text'})});
+      if(!res.ok){const b=await res.json().catch(()=>({}));throw new Error(b.error||`HTTP ${res.status}`)}
+      const {id}=await res.json(); try{localStorage.setItem('pm_last_entry',String(id))}catch{}
+      setDirty(false); await loadProjects(); LOADED.add(String(id)); saveLoaded(); await loadEntry(String(id)); renderCases(); st.textContent=`已複製為「${v.name}」（日期${D>=0?'後移':'前移'} ${Math.abs(D)} 天）`; return}
     let sd=pd(v.start); withCal(v.cal==='weekend'?{calendar:'weekend'}:{},()=>{while(!isWd(sd))sd=addD(sd,1)});
     const tasks=tplBuild(tp,v.molds,fd(sd));
     const meta={name:v.name,product:v.product,leader:v.leader||undefined,source:`模板：${tp.name}${tp.draft?'（草稿*）':''}`,version:'v1',updated:fd(new Date()),default_start:fd(sd),kind:tp.kind,
