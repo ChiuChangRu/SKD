@@ -1322,20 +1322,20 @@ document.getElementById('mg').addEventListener('pointerdown',e=>{
   const r=byK[bar.dataset.k]; if(!r||!r.s)return; if(r.sm==='xls'){document.getElementById('msg').textContent='Excel 原樣（鎖定）：日期、工期等 Excel 內容不能修改';return}
   const track=bar.parentElement.getBoundingClientRect();
   const grp=MSEL.size>1&&MSEL.has(r.k); if(MSEL.size&&!MSEL.has(r.k))clearSel();
-  DRAG={bar,r,x0:e.clientX,y0:e.clientY,canLink:!grp&&depNoPre(r),link:null,mode:e.target.classList.contains('gh')?'resize':'move',pxPerDay:track.width/GAX.span,left0:bar.offsetLeft,w0:bar.offsetWidth,moved:false,group:grp,gb:grp?[...document.getElementById('mg').querySelectorAll('.g-bar.sel.ed')].map(b=>({bar:b,w0:b.offsetWidth})):[]};
+  DRAG={bar,r,x0:e.clientX,y0:e.clientY,canLink:!grp&&(depNoPre(r)||e.altKey),alt:!!e.altKey&&!grp&&!depNoPre(r),link:null,mode:e.target.classList.contains('gh')?'resize':'move',pxPerDay:track.width/GAX.span,left0:bar.offsetLeft,w0:bar.offsetWidth,moved:false,group:grp,gb:grp?[...document.getElementById('mg').querySelectorAll('.g-bar.sel.ed')].map(b=>({bar:b,w0:b.offsetWidth})):[]};
   bar.setPointerCapture(e.pointerId); e.preventDefault();
 });
 document.getElementById('mg').addEventListener('pointermove',e=>{
   if(!DRAG)return; const dx=e.clientX-DRAG.x0, dy=e.clientY-DRAG.y0;
-  if(Math.abs(dx)>3||(DRAG.canLink&&Math.abs(dy)>14))DRAG.moved=true; if(!DRAG.moved)return;
-  if(DRAG.canLink&&Math.abs(dy)>14){            // 無前案的任務：拖到另一個任務上放掉＝把它設成前案
+  if(Math.abs(dx)>3||(DRAG.canLink&&Math.abs(dy)>14)||(DRAG.alt&&Math.abs(dy)>3))DRAG.moved=true; if(!DRAG.moved)return;
+  if(DRAG.canLink&&(Math.abs(dy)>14||DRAG.alt)){            // 無前案的任務：拖到另一個任務上放掉＝把它設成前案
     const hit=depDropAt(e.clientX,e.clientY,DRAG.r,DRAG.bar);
     document.querySelectorAll('.g-bar.dp-target,.g-bar.dp-bad').forEach(b=>{b.classList.remove('dp-target','dp-bad'); const rw=b.closest('.g-row'); if(rw)rw.classList.remove('dp-target')});
     DRAG.link=hit&&!hit.err?hit:null; DRAG.linkMode=true;
     if(hit){hit.bar.classList.add(hit.err?'dp-bad':'dp-target'); if(!hit.err){const rw=hit.bar.closest('.g-row'); if(rw)rw.classList.add('dp-target')}}
     DRAG.bar.style.transform=''; DRAG.bar.style.width=DRAG.w0+'px';
     let tp=document.getElementById('dragTip'); if(!tp){tp=document.createElement('div');tp.id='dragTip';document.body.appendChild(tp)}
-    tp.innerHTML=hit?(hit.err?`<b style="color:#ff9d96">${esc(hit.err)}</b>`:`<b>放開＝設為前案</b><br>${esc(byK[hit.k].name)}<br><span>完成後接著做「${esc(DRAG.r.name)}」</span>`)
+    tp.innerHTML=hit?(hit.err?`<b style="color:#ff9d96">${esc(hit.err)}</b>`:`<b>放開＝設為前案</b><br>${esc(byK[hit.k].name)}<br><span>完成後接著做「${esc(DRAG.r.name)}」</span>${DRAG.alt?'<br><b style="color:#ffd27a">新增為前案；這個任務改成「前置任務」模式，日期會依前案重排</b>':''}`)
       :'<b>拖到要當前案的任務上</b><br><span>放在空白處放開＝取消；左右拖＝改日期</span>';
     tp.style.left=Math.min(innerWidth-210,e.clientX+14)+'px'; tp.style.top=Math.max(4,e.clientY-62)+'px';
     document.getElementById('msg').textContent=hit&&!hit.err?`放開＝把「${byK[hit.k].name}」設為「${DRAG.r.name}」的前案`:(hit&&hit.err||'拖到要當前案的任務上；放在空白處放開＝取消');
@@ -1372,9 +1372,9 @@ document.getElementById('mg').addEventListener('pointerup',e=>{
   if(d.linkMode&&!d.link){d.bar.style.width=''; render(); document.getElementById('msg').textContent='已取消：沒有放在任何任務上'; return}
   if(d.link&&d.moved){ const q=byK[d.link.k]; d.bar.style.width='';
     if(!q){render();return} pushUndo();
-    d.r.sm='pred'; d.r.pred=[[q.k,'FS',0]]; delete d.r.fix; setDirty(true); render();
+    d.r.sm='pred'; d.r.pred=d.alt?[...(d.r.pred||[]).filter(p=>p[0]!==q.k),[q.k,'FS',0]]:[[q.k,'FS',0]]; delete d.r.fix; setDirty(true); render();
     DEPK=CUR_ID+'|'+d.r.k; applyDep(); refreshPop();
-    document.getElementById('msg').textContent=`已把「${q.name}」設為「${d.r.name}」的前案（緊接著做、延遲 0 工天）。要改關係或延遲請雙擊任務；按 ↶ 可復原`; return}
+    document.getElementById('msg').textContent=`已把「${q.name}」設為「${d.r.name}」的前案（緊接著做、延遲 0 工天${d.alt?'；原有前案保留，日期已依前案重排':''}）。要改關係或延遲請雙擊任務；按 ↶ 可復原`; return}
   if(!d.moved){if(d.group)openPopMulti(e.clientX,e.clientY); else {const bk=d.bar.dataset.bk; if(bk){if(DEPK!==bk){DEPK=bk;applyDep()}} else openPop(d.r,e.clientX,e.clientY)} return}   // 單擊＝看前後案；雙擊＝編輯（見 dblclick）
   const days=Math.round((e.clientX-d.x0)/d.pxPerDay); if(!days){render();return}
   pushUndo(); let warn='';
